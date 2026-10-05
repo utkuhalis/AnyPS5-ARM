@@ -27,6 +27,15 @@ Windows output:
 relinker --windows source/input.elf app.exe
 ```
 
+macOS output (x86-64, runs under Rosetta on Apple silicon), packaged as an application that starts without the Vulkan SDK:
+
+```sh
+relinker --macos --to-intel source/input.elf out/eboot
+python3 tools/package_macos_app.py --relinked out --game source --libs build/core/libs/libs --vulkan ~/VulkanSDK/<version>/macOS Title.app
+```
+
+The bundle holds the title, the prx libraries, the Vulkan loader and MoltenVK. It writes its shader cache to `~/Library/Caches/<bundle id>` and its output to `~/Library/Logs/AnyPS5/<title id>.log`.
+
 Add `--to-intel` for Intel hosts. The output format defaults to Linux ELF regardless of the filename; `.exe` alone does not select Windows.
 
 ## Options

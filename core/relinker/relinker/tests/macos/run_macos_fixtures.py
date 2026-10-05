@@ -156,6 +156,31 @@ def compiled_breakout(directory):
     (directory / "app0" / "sce_sys").mkdir(parents=True)
     (directory / "app0" / "sce_sys" / "param.json").write_text('{"titleId": "APS5TEST1", "localizedParameters": {"en-US": {"titleName": "AnyPS5 Breakout"}}}')
     (directory / "anyps5-input.ini").write_text("Left = KEY:Left\nRight = KEY:Right\nCross = KEY:Space\nOptions = KEY:Escape\n")
+    (directory / "app0" / "sce_sys" / "icon0.png").write_bytes(breakout_icon())
+
+
+def breakout_icon(size=512):
+    """icon0.png for the Breakout guest: rows of bricks, the paddle and the ball, as an RGB PNG."""
+    import struct, zlib
+    colors = [(0xe5, 0x48, 0x4d), (0xf7, 0x6b, 0x15), (0xff, 0xc5, 0x3d), (0x46, 0xa7, 0x58), (0x3e, 0x63, 0xdd)]
+    rows = []
+    for y in range(size):
+        row = bytearray(b"\0")
+        for x in range(size):
+            pixel = (0x14, 0x18, 0x28 + y * 0x20 // size)
+            band, within = divmod(y - 96, 44)
+            if 0 <= band < len(colors) and within < 34 and (x - 40) % 88 < 76 and 40 <= x < size - 40:
+                pixel = colors[band]
+            if 400 <= y < 424 and 176 <= x < 336:
+                pixel = (0xe8, 0xec, 0xf2)
+            if 340 <= y < 368 and 300 <= x < 328:
+                pixel = (0xff, 0xff, 0xff)
+            row += bytes(pixel)
+        rows.append(bytes(row))
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xffffffff)
+    header = struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(b"".join(rows), 9)) + chunk(b"IEND", b"")
 
 
 def stale_libraries(libraries):
