@@ -41,6 +41,22 @@ def compiled_exception(directory):
     tools.link_executable([str(directory / "main.nid.o")], [str(directory / "libc.prx")], str(directory / "eboot.elf"))
 
 
+def compiled_c_cleanup(directory):
+    tools = guesttools
+    objects = {"cleanup": ("c_cleanup.c", ["-x", "c"]), "main": ("c_cleanup_main.cpp", [])}
+    for name, (source, extra) in objects.items():
+        tools.compile(str(HERE / source), str(directory / f"{name}.o"), extra=extra)
+    imported = set()
+    defined = set()
+    for name in objects:
+        imported.update(tools.symbols(str(directory / f"{name}.o"), "-u"))
+        defined.update(tools.symbols(str(directory / f"{name}.o"), "-g", "--defined-only"))
+    for name in objects:
+        tools.nidify(str(directory / f"{name}.o"), str(directory / f"{name}.nid.o"))
+    tools.stub_library(sorted(imported - defined), str(directory / "libc.prx"), "libc.prx")
+    tools.link_executable([str(directory / f"{name}.nid.o") for name in objects], [str(directory / "libc.prx")], str(directory / "eboot.elf"))
+
+
 def compiled_module(directory):
     tools = guesttools
     (directory / "sce_module").mkdir()
@@ -146,6 +162,7 @@ def main():
     ]
     if guesttools.available():
         cases += [("exception", compiled_exception, 43, [], False),
+                  ("c-cleanup", compiled_c_cleanup, 47, [], False),
                   ("threads", compiled_threads, 51, [], False),
                   ("module", compiled_module, 143, [], True),
                   ("tls-modules", compiled_tls_modules, 47, [], True),
