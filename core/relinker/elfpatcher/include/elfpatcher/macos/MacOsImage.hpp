@@ -22,6 +22,22 @@ struct MacOsExport {
     std::uint32_t Rva;
 };
 
+// A TLS variable another image reaches with general-dynamic access. The slot receives the defining
+// image's module id (DTPMOD64) or the variable's offset plus the addend (DTPOFF64); the image
+// initializer copies them from the TLS index the defining image exports under the symbol.
+struct MacOsTlsImport {
+    std::string Symbol;
+    std::uint32_t Rva;
+    bool Module;
+    std::int64_t Addend = 0;
+};
+
+// An exported TLS variable: its symbol names a TLS index {module id, offset}, as on Windows.
+struct MacOsTlsExport {
+    std::string Symbol;
+    std::uint64_t Offset;
+};
+
 // A guest image laid out by WindowsLoadImage (ImageBase + RVA, relocations already written) and what
 // the Mach-O writer adds around it. dyld rebases the Rebases slots, binds the Binds slots and loads the
 // Dylibs in order; flat-namespace lookups then search the images in that load order.
@@ -45,6 +61,8 @@ struct MacOsImageInput {
     std::vector<std::uint32_t> FiniArrayRvas;
     // Slots that receive the image's TLS descriptor address (DTPMOD64 for the image's own TLS).
     std::vector<std::uint32_t> TlsModuleSlots;
+    std::vector<MacOsTlsImport> TlsImports;
+    std::vector<MacOsTlsExport> TlsExports;
     // --to-intel: AMD-only instructions that jump to an out-of-line stub (in __AMDSTUB).
     const std::vector<Codegen::TrampolineSite>* Trampolines = nullptr;
 };

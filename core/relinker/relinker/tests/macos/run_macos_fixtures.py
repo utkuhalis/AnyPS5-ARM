@@ -70,6 +70,22 @@ def compiled_intel(directory):
     tools.link_executable([str(directory / "main.nid.o")], [str(module), str(directory / "libc.prx")], str(directory / "eboot.elf"))
 
 
+def compiled_tls_modules(directory):
+    tools = guesttools
+    (directory / "sce_module").mkdir()
+    tools.stub_library(["exit", "__tls_get_addr"], str(directory / "libc.prx"), "libc.prx")
+    tools.stub_library(["scePthreadCreate", "scePthreadJoin"], str(directory / "libkernel.prx"), "libkernel.prx")
+    owner = directory / "sce_module" / "libowner.prx"
+    user = directory / "sce_module" / "libuser.prx"
+    for source, name, module, libraries in (("tls_owner.cpp", "owner", owner, []), ("tls_user.cpp", "user", user, [str(owner)])):
+        tools.compile(str(HERE / source), str(directory / f"{name}.o"), pic=True)
+        tools.nidify(str(directory / f"{name}.o"), str(directory / f"{name}.nid.o"))
+        tools.link_module([str(directory / f"{name}.nid.o")], [*libraries, str(directory / "libc.prx")], str(module), module.name)
+    tools.compile(str(HERE / "tls_modules_main.cpp"), str(directory / "main.o"))
+    tools.nidify(str(directory / "main.o"), str(directory / "main.nid.o"))
+    tools.link_executable([str(directory / "main.nid.o")], [str(user), str(owner), str(directory / "libc.prx"), str(directory / "libkernel.prx")], str(directory / "eboot.elf"))
+
+
 def compiled_threads(directory):
     tools = guesttools
     tools.stub_library(["exit"], str(directory / "libc.prx"), "libc.prx")
@@ -132,6 +148,7 @@ def main():
         cases += [("exception", compiled_exception, 43, [], False),
                   ("threads", compiled_threads, 51, [], False),
                   ("module", compiled_module, 143, [], True),
+                  ("tls-modules", compiled_tls_modules, 47, [], True),
                   # Without --to-intel the AMD-only instructions fault under Rosetta; with it they run.
                   ("intel-unconverted", compiled_intel, -signal.SIGILL, [], True),
                   ("intel", compiled_intel, 47, [], True, ["--to-intel"])]

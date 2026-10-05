@@ -8,6 +8,7 @@
 #include <bit>
 #include <iomanip>
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>
@@ -440,10 +441,31 @@ std::vector<std::uint8_t> WriteMacOsImage(MacOsImageInput& input) {
         Io::WriteU64(meta, at + 48, header.Alignment);
     }
     const auto descriptor = metaRva + static_cast<std::uint32_t>(MetaTlsDescriptor);
-    // After the metadata: the __mod_init_func pointer and the executable's Aps5StartGuest slot.
+    // After the metadata: the __mod_init_func pointer, the executable's Aps5StartGuest slot, the TLS
+    // indexes of the exported TLS variables and the slots bound to the TLS indexes this image imports.
     const auto initPointer = AlignUp(metaSize, 8);
     const auto startSlot = initPointer + 8;
-    const auto codeRva = static_cast<std::uint32_t>(AlignUp(metaRva + startSlot + 8, PageSize));
+    const auto tlsExports = startSlot + 8;
+    std::map<std::string, std::uint64_t> tlsImportSlots;
+    for (const auto& import : input.TlsImports) tlsImportSlots.emplace(import.Symbol, 0);
+    auto metaEnd = tlsExports + input.TlsExports.size() * 16;
+    for (auto& [symbol, slot] : tlsImportSlots) {
+        slot = metaEnd;
+        metaEnd += 8;
+        input.Binds.push_back({symbol, metaRva + static_cast<std::uint32_t>(slot)});
+    }
+    meta.resize(metaEnd, 0);
+    for (std::size_t index = 0; index < input.TlsExports.size(); ++index) {
+        const auto& variable = input.TlsExports[index];
+        if (!hasTls) throw Domain::RelinkerException("Guest TLS export has no TLS block: " + variable.Symbol);
+        if (variable.Offset >= tls.Tls->MemorySize) throw Domain::RelinkerException("Guest TLS export is outside the TLS block: " + variable.Symbol);
+        const auto at = tlsExports + index * 16;
+        Io::WriteU64(meta, at, ImageBase + descriptor);
+        Io::WriteU64(meta, at + 8, variable.Offset);
+        input.Rebases.push_back(metaRva + static_cast<std::uint32_t>(at));
+        input.Exports.push_back({variable.Symbol, metaRva + static_cast<std::uint32_t>(at)});
+    }
+    const auto codeRva = static_cast<std::uint32_t>(AlignUp(metaRva + metaEnd, PageSize));
     Windows::WindowsStubEmitter code(codeRva);
 
     // Guest TLS: every %fs access becomes a stub that reads this image's thread pointer from its
@@ -537,9 +559,9 @@ std::vector<std::uint8_t> WriteMacOsImage(MacOsImageInput& input) {
         input.Binds.push_back({"___cxa_atexit", metaRva + static_cast<std::uint32_t>(MetaCxaAtexitSlot)});
     }
 
-    // The image initializer: register the TLS descriptor, run the guest initializers, then hand the
-    // finalizers to __cxa_atexit.
-    const bool hasInit = hasTls || input.InitRva != 0 || !input.InitArrayRvas.empty() || hasFini;
+    // The image initializer: register the TLS descriptor, fill the imported TLS slots, run the guest
+    // initializers, then hand the finalizers to __cxa_atexit.
+    const bool hasInit = hasTls || !input.TlsImports.empty() || input.InitRva != 0 || !input.InitArrayRvas.empty() || hasFini;
     std::vector<Section> dataSections{{"__meta", 0, metaSize, 0, 3}};
     if (hasInit) {
         const auto initStub = code.GetRva();
@@ -547,6 +569,17 @@ std::vector<std::uint8_t> WriteMacOsImage(MacOsImageInput& input) {
         if (hasTls) {
             code.Rip({0x48, 0x8d, 0x3d}, descriptor);                        // lea rdi, [rip + descriptor]
             code.Rip({0xff, 0x15}, metaRva + static_cast<std::uint32_t>(MetaRegisterSlot)); // call [rip + register]
+        }
+        for (const auto& import : input.TlsImports) {
+            code.Rip({0x48, 0x8b, 0x05}, metaRva + static_cast<std::uint32_t>(tlsImportSlots.at(import.Symbol))); // mov rax, [rip + TLS index]
+            if (import.Module) code.Emit({0x48, 0x8b, 0x00});               // mov rax, [rax]: module id
+            else code.Emit({0x48, 0x8b, 0x40, 0x08});                        // mov rax, [rax + 8]: offset
+            if (import.Addend != 0) {
+                code.Emit({0x48, 0xba});                                     // mov rdx, addend
+                code.U64(static_cast<std::uint64_t>(import.Addend));
+                code.Emit({0x48, 0x01, 0xd0});                               // add rax, rdx
+            }
+            code.Rip({0x48, 0x89, 0x05}, import.Rva);                        // mov [rip + slot], rax
         }
         if (input.InitRva != 0) {
             callZeroArgs();
@@ -560,13 +593,11 @@ std::vector<std::uint8_t> WriteMacOsImage(MacOsImageInput& input) {
             code.Rip({0xff, 0x15}, metaRva + static_cast<std::uint32_t>(MetaCxaAtexitSlot)); // call [rip + __cxa_atexit]
         }
         code.Emit({0x5d, 0xc3});                                             // pop rbp / ret
-        meta.resize(initPointer + 8, 0);
         Io::WriteU64(meta, initPointer, ImageBase + initStub);
         input.Rebases.push_back(metaRva + static_cast<std::uint32_t>(initPointer));
         dataSections.push_back({"__mod_init_func", initPointer, 8, SectionModInitFuncPointers, 3});
     }
     if (input.Executable) {
-        meta.resize(startSlot + 8, 0);
         input.Binds.push_back({"_Aps5StartGuest_nid_no_patch", metaRva + static_cast<std::uint32_t>(startSlot)});
     }
     const auto metaBytes = meta.size();

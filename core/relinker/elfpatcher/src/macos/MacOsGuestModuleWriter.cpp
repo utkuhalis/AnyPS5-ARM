@@ -10,7 +10,9 @@ namespace Elfpatcher {
 // A bundled guest module as a Mach-O dylib. Its relocations are resolved the way the Windows writer
 // resolves them, except that dyld does the binding: imports are flat-namespace binds, so the guest
 // modules the executable loads first win over the prx libraries, as in ELF symbol lookup. Each module
-// keeps its own static TLS block and thread pointer (see MacOsImage.cpp).
+// keeps its own static TLS block and thread pointer (see MacOsImage.cpp). An exported TLS variable is a
+// TLS index other modules reach with general-dynamic access; initial-exec access to another module's
+// TLS is not supported, as on Windows.
 std::vector<std::uint8_t> GuestModuleWriter::WriteMacOs(const Relinker::GuestImage& guest, const std::vector<std::string>& dependencies, const std::string& runPath) const {
     using namespace MacOs;
     Windows::WindowsLoadImage image(guest.Bytes, guest.Headers, false);
@@ -52,8 +54,10 @@ std::vector<std::uint8_t> GuestModuleWriter::WriteMacOs(const Relinker::GuestIma
                 input.Rebases.push_back(rva);
             } else if (type == 16 || type == 17) {
                 if ((type == 16 && addend != 0) || (symbolIndex != 0 && !tlsSymbol)) throw Domain::RelinkerException("Invalid guest dynamic TLS relocation", target);
-                if (imported) throw Domain::RelinkerException("macOS target does not support TLS imported from another guest module yet: " + symbol.Name, target);
-                if (type == 16) {
+                if (imported) {
+                    image.WritePointer(target, 0);
+                    input.TlsImports.push_back({"_" + symbol.Name, rva, type == 16, static_cast<std::int64_t>(addend)});
+                } else if (type == 16) {
                     image.WritePointer(target, 0);
                     input.TlsModuleSlots.push_back(rva);
                 } else image.WritePointer(target, symbol.Value + addend);
@@ -82,7 +86,10 @@ std::vector<std::uint8_t> GuestModuleWriter::WriteMacOs(const Relinker::GuestIma
     for (const auto& symbol : guest.Symbols) {
         if (symbol.Section == 0 || (symbol.Info >> 4) == 0 || symbol.Visibility == 1 || symbol.Visibility == 2) continue;
         if (symbol.Section >= 0xff00) throw Domain::RelinkerException("Unsupported guest export section: " + symbol.Name);
-        if ((symbol.Info & 15) == 6) throw Domain::RelinkerException("macOS target does not support guest TLS exports yet: " + symbol.Name);
+        if ((symbol.Info & 15) == 6) {
+            input.TlsExports.push_back({"_" + symbol.Name, symbol.Value});
+            continue;
+        }
         input.Exports.push_back({"_" + symbol.Name, image.GetRva(symbol.Value, std::max<std::uint64_t>(symbol.Size, 1))});
     }
 
