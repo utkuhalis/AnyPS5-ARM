@@ -293,10 +293,11 @@ Throughout the project, every function at every stage either **does exactly what
 - [8_SRGB color targets](../../core/libs/prx/libSceAgcDriver/Graphics/src/Texture.cpp) (libSceAgcDriver) on such a device throw unless they are single-mip 2D surfaces with a resident image; linear targets have none.
 - [COPY_DATA from the GPU clock](../../core/libs/prx/libSceAgcDriver/Execution/src/Pm4.cpp) (libSceAgcDriver, `SRC_SEL` 9) writes the host steady clock in 10 ns ticks when the packet runs, the same counter as the `RELEASE_MEM` timestamp, not the console's GPU clock. The `COPY_DATA` cache policy fields are accepted and have no effect.
 - `--to-intel` guest module trampolines are covered only by a synthetic relinker test; no game title has been verified with them on Linux or Windows.
-- On macOS (MoltenVK on an Apple GPU), 15 AGC tests fail on hardware limits:
+- On macOS (MoltenVK on an Apple GPU), 16 AGC tests fail on hardware limits:
   - Metal has no 64-bit floats (the 7 agc_driver_f64_* tests and agc_driver_division_result_modifiers);
-  - it has no 64-bit atomics (the agc_driver_buffer_atomics* and agc_driver_global_atomics* tests, 6);
+  - it has no 64-bit atomics (agc_driver_buffer_atomics*, agc_driver_global_atomics64, agc_driver_global_atomics_float, agc_driver_global_atomics_lanes);
   - MoltenVK offers no VK_KHR_shader_clock (agc_driver_shader_clock).
+- agc_driver_sdwa_float_selectors fails on macOS: an f16 multiply that should give -0.0 gives +0.0. In isolation, Metal keeps the sign through each step of the same chain (half to float, multiply, the software float-to-half conversion), so the difference comes from the shader as MoltenVK compiles it.
 - The [SPIR-V backend](../../core/shader/recompiler/SpirvBackend) works around SPIRV-Cross, which MoltenVK uses to make Metal shaders:
   - ordered not-equal is emitted as not unordered-equal, because SPIRV-Cross writes OpFOrdNotEqual as `!=`;
   - NaN tests read the bits;
