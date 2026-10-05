@@ -136,6 +136,28 @@ def compiled_videoout(directory):
                           "sceVideoOutWaitVblank", "sceVideoOutClose"])
 
 
+def compiled_breakout(directory):
+    """A small game (breakout.cpp) that opens a window and plays sound; it is built here and run by hand."""
+    tools = guesttools
+    libraries = {
+        "libc.prx": ["exit", "memset", "memcpy"],
+        "libkernel.prx": ["sceKernelAllocateDirectMemory", "sceKernelMapDirectMemory", "scePthreadCreate"],
+        "libSceVideoOut.prx": ["sceVideoOutOpen", "sceVideoOutSetBufferAttribute2", "sceVideoOutRegisterBuffers2", "sceVideoOutSubmitFlip",
+                               "sceVideoOutWaitVblank", "sceVideoOutClose"],
+        "libScePad.prx": ["scePadInit", "scePadOpen", "scePadReadState"],
+        "libSceAudioOut.prx": ["sceAudioOutInit", "sceAudioOutOpen", "sceAudioOutOutput"],
+        "libSceUserService.prx": ["sceUserServiceInitialize", "sceUserServiceGetInitialUser"],
+    }
+    for name, functions in libraries.items():
+        tools.stub_library(functions, str(directory / name), name)
+    tools.compile(str(HERE / "breakout.cpp"), str(directory / "main.o"))
+    tools.nidify(str(directory / "main.o"), str(directory / "main.nid.o"))
+    tools.link_executable([str(directory / "main.nid.o")], [str(directory / name) for name in libraries], str(directory / "eboot.elf"))
+    (directory / "app0" / "sce_sys").mkdir(parents=True)
+    (directory / "app0" / "sce_sys" / "param.json").write_text('{"titleId": "APS5TEST1", "localizedParameters": {"en-US": {"titleName": "AnyPS5 Breakout"}}}')
+    (directory / "anyps5-input.ini").write_text("Left = KEY:Left\nRight = KEY:Right\nCross = KEY:Space\nOptions = KEY:Escape\n")
+
+
 def stale_libraries(libraries):
     """Patched libraries older than their unpatched build: `ninja libs` was not run after a change."""
     libraries = pathlib.Path(libraries)
