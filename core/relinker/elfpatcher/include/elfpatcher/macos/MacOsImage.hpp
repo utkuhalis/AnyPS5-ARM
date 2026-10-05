@@ -1,0 +1,69 @@
+#ifndef ELFPATCHER_MACOS_IMAGE_HPP
+#define ELFPATCHER_MACOS_IMAGE_HPP
+
+#include <elfpatcher/windows/WindowsLoadImage.hpp>
+#include <codegen/CodegenTypes.hpp>
+#include <domain/Types.hpp>
+#include <cstdint>
+#include <string>
+#include <vector>
+
+namespace Elfpatcher::MacOs {
+
+// A flat-namespace bind of a pointer slot to a symbol (Mach-O spelling, with the leading underscore).
+struct MacOsBind {
+    std::string Symbol;
+    std::uint32_t Rva;
+    std::int64_t Addend = 0;
+};
+
+struct MacOsExport {
+    std::string Symbol;
+    std::uint32_t Rva;
+};
+
+// A guest image laid out by WindowsLoadImage (ImageBase + RVA, relocations already written) and what
+// the Mach-O writer adds around it. dyld rebases the Rebases slots, binds the Binds slots and loads the
+// Dylibs in order; flat-namespace lookups then search the images in that load order.
+struct MacOsImageInput {
+    bool Executable = true;
+    std::string InstallName;
+    const std::vector<std::uint8_t>* Source = nullptr;
+    const std::vector<Domain::ProgramHeader>* Headers = nullptr;
+    Windows::WindowsLoadImage* Image = nullptr;
+    std::vector<std::uint32_t> Rebases;
+    std::vector<MacOsBind> Binds;
+    std::vector<MacOsExport> Exports;
+    std::vector<std::string> Dylibs;
+    std::vector<std::string> RunPaths;
+    // Executables: where the entry stub hands over.
+    std::uint32_t EntryRva = 0;
+    // Guest modules: run from the image initializer with zero arguments, finalizers at exit or unload.
+    std::uint32_t InitRva = 0;
+    std::uint32_t FiniRva = 0;
+    std::vector<std::uint32_t> InitArrayRvas;
+    std::vector<std::uint32_t> FiniArrayRvas;
+    // Slots that receive the image's TLS descriptor address (DTPMOD64 for the image's own TLS).
+    std::vector<std::uint32_t> TlsModuleSlots;
+    // --to-intel: AMD-only instructions that jump to an out-of-line stub (in __AMDSTUB).
+    const std::vector<Codegen::TrampolineSite>* Trampolines = nullptr;
+};
+
+// The size of the static TLS block the thread pointer follows (variant II), shared by the TLS stubs,
+// TPOFF64 relocations and the runtime descriptor.
+std::uint64_t GuestTlsBlockSize(const Domain::ProgramHeader& tls);
+
+std::vector<std::uint8_t> WriteMacOsImage(MacOsImageInput& input);
+
+// "$ORIGIN" rewritten to a dyld path prefix (@executable_path or @loader_path).
+std::string MachOLoadPath(const std::string& path, const std::string& origin);
+
+// A DT_NEEDED name as an LC_LOAD_DYLIB path: guest modules ($ORIGIN) beside the loader, prx libraries
+// through the rpath.
+std::string MachODependency(const std::string& name, const std::string& origin);
+
+std::vector<std::string> ReadNeededLibraries(const Domain::SysVDynamicSection& dynamicSection);
+
+}
+
+#endif

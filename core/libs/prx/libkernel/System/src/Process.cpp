@@ -158,6 +158,11 @@ int APS5_VABI sceKernelGetCurrentCpu(void) {
         index += count;
     }
     return static_cast<int>(index);
+#elif defined(__APPLE__)
+    std::size_t cpu = 0;
+    if (const int error = ::pthread_cpu_number_np(&cpu); error != 0)
+        throw std::system_error(error, std::generic_category(), "Reading current processor");
+    return static_cast<int>(cpu);
 #else
     const int cpu = ::sched_getcpu();
     if (cpu < 0)

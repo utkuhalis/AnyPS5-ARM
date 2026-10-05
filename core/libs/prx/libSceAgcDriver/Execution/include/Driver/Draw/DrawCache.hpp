@@ -11,6 +11,7 @@
 #include <list>
 #include <memory>
 #include <vector>
+#include "prx/libc/include/general/AtomicSharedPtr.hpp"
 
 namespace AgcDriver::DriverDetail {
 
@@ -45,7 +46,7 @@ struct DrawEntry {
 
     std::vector<std::vector<std::shared_ptr<DispatchVariant>>> stages;
 
-    std::atomic<std::shared_ptr<const std::vector<DrawRecipeRecord>>> recipes;
+    AtomicSharedPtr<const std::vector<DrawRecipeRecord>> recipes;
     std::uint64_t touched = 0;
     std::list<std::uint64_t>::iterator order;
 };

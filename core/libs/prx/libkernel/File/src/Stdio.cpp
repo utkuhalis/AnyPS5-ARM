@@ -450,6 +450,64 @@ int APS5_VABI sceKernelGetdents(int fd, char* buf, int nbytes) {
     return sceKernelGetdirentries(fd, buf, nbytes, nullptr);
 }
 
+#elif defined(__APPLE__)
+
+// APFS leaves d_seekoff at 0, so a batch that does not fit cannot be resumed from getdirentries
+// cookies. The descriptor's offset holds the index of the next entry instead, and each call lists
+// the directory through a separate descriptor; seeking the guest descriptor to 0 rewinds it.
+int APS5_VABI sceKernelGetdirentries(int fd, char* buf, int nbytes, int64_t* basep) {
+    constexpr std::size_t GuestHeaderBytes = 8;
+    constexpr std::size_t GuestMaxName = 255;
+    if (buf == nullptr) return SceErrorFromErrno(GUEST_EFAULT);
+    if (nbytes <= 0) return SceErrorFromErrno(GUEST_EINVAL);
+    const off_t base = ::lseek(fd, 0, SEEK_CUR);
+    if (base < 0) return SceErrorFromErrno(errno);
+    if (basep != nullptr) *basep = static_cast<int64_t>(base);
+    const int listing = ::openat(fd, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (listing < 0) return SceErrorFromErrno(errno);
+    DIR* directory = ::fdopendir(listing);
+    if (directory == nullptr) {
+        const int error = errno;
+        ::close(listing);
+        return SceErrorFromErrno(error);
+    }
+    std::size_t written = 0;
+    off_t index = 0;
+    int result = 0;
+    errno = 0;
+    while (const dirent* entry = ::readdir(directory)) {
+        if (index++ < base) continue;
+        const std::size_t nameLength = entry->d_namlen;
+        const auto record = (GuestHeaderBytes + nameLength + 1 + 3) & ~std::size_t{3};
+        if (nameLength > GuestMaxName || written + record > static_cast<std::size_t>(nbytes)) {
+            --index;
+            if (written == 0) result = nameLength > GuestMaxName ? static_cast<int>(0x80020000u | GUEST_ENAMETOOLONG) : SceErrorFromErrno(GUEST_EINVAL);
+            break;
+        }
+        char* out = buf + written;
+        std::memset(out, 0, record);
+        const auto fileNumber = static_cast<std::uint32_t>(entry->d_ino);
+        const auto recordLength = static_cast<std::uint16_t>(record);
+        const auto nameBytes = static_cast<std::uint8_t>(nameLength);
+        std::memcpy(out, &fileNumber, sizeof(fileNumber));
+        std::memcpy(out + 4, &recordLength, sizeof(recordLength));
+        out[6] = static_cast<char>(entry->d_type);
+        out[7] = static_cast<char>(nameBytes);
+        std::memcpy(out + GuestHeaderBytes, entry->d_name, nameLength);
+        written += record;
+    }
+    const int readError = errno;
+    ::closedir(directory);
+    if (result != 0) return result;
+    if (readError != 0 && written == 0) return SceErrorFromErrno(readError);
+    if (::lseek(fd, index, SEEK_SET) < 0) return SceErrorFromErrno(errno);
+    return static_cast<int>(written);
+}
+
+int APS5_VABI sceKernelGetdents(int fd, char* buf, int nbytes) {
+    return sceKernelGetdirentries(fd, buf, nbytes, nullptr);
+}
+
 #else
 
 int APS5_VABI sceKernelGetdirentries(int fd, char* buf, int nbytes, int64_t* basep) {

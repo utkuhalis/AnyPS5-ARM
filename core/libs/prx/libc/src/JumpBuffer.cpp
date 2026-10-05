@@ -1,14 +1,9 @@
 #include "prx/libc/include/General.hpp"
+#include "prx/libc/include/general/AsmFunction.hpp"
 
 // setjmp/longjmp must capture the guest's own frame, so they are written directly in assembly with
 // the guest (System V) calling convention. The saved state fits the guest's 96-byte jmp_buf:
 // return address, rbx, rsp, rbp, r12-r15, MXCSR and the x87 control word.
-#ifdef _WIN32
-#define APS5_ASM_FUNCTION(name) ".globl " name "\n.def " name "; .scl 2; .type 32; .endef\n" name ":\n"
-#else
-#define APS5_ASM_FUNCTION(name) ".globl " name "\n.type " name ", @function\n" name ":\n"
-#endif
-
 asm(".text\n"
     APS5_ASM_FUNCTION("setjmp_nid_postfix")
     "    mov (%rsp), %rax\n"

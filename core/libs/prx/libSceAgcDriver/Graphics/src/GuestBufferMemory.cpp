@@ -36,6 +36,7 @@
 #include <cstring>
 #include <limits>
 #include <stdexcept>
+#include "prx/libc/include/general/AtomicSharedPtr.hpp"
 
 namespace AgcDriver::Graphics {
 
@@ -91,7 +92,7 @@ struct GuestBufferMemory::AddressSpace {
 namespace {
 
 struct AddressSpaceCache {
-    std::atomic<std::shared_ptr<const GuestBufferMemory::AddressSpace>> current;
+    AtomicSharedPtr<const GuestBufferMemory::AddressSpace> current;
     std::atomic<std::uint64_t> serials{0};
     // Set by the waiter's drop, cleared by the next publish: the rebuild's reason.
     std::atomic<bool> droppedByWaiter{false};
