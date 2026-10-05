@@ -116,17 +116,14 @@ std::uint32_t SpirvValueEmitContext::HalfArg(const IrValue& inst, std::size_t in
 
 std::uint32_t SpirvValueEmitContext::Ballot(const IrValue* predicate) {
     const auto ballotType = TypeU32Vector(state, 4u);
-    const auto scope = ConstantU32(state, spv::ScopeSubgroup);
-    const auto low = state.module.AllocateId();
-    state.module.AddFunction(spv::OpGroupNonUniformBallot, ballotType, low, scope, otherHalf == nullptr || half == 0u ? Def(predicate) : otherHalf->Def(predicate));
+    const auto low = EmitLaneBallot(state, otherHalf == nullptr || half == 0u ? Def(predicate) : otherHalf->Def(predicate));
     if (otherHalf == nullptr) {
         return EmitWaveBallot(state, low);
     }
-    const auto high = state.module.AllocateId();
     const auto lowWord = state.module.AllocateId();
     const auto highWord = state.module.AllocateId();
     const auto ballot = state.module.AllocateId();
-    state.module.AddFunction(spv::OpGroupNonUniformBallot, ballotType, high, scope, half == 1u ? Def(predicate) : otherHalf->Def(predicate));
+    const auto high = EmitLaneBallot(state, half == 1u ? Def(predicate) : otherHalf->Def(predicate));
     state.module.AddFunction(spv::OpCompositeExtract, TypeU32(state), lowWord, low, 0u);
     state.module.AddFunction(spv::OpCompositeExtract, TypeU32(state), highWord, high, 0u);
     state.module.AddFunction(spv::OpCompositeConstruct, ballotType, ballot, lowWord, highWord, ConstantU32(state, 0u), ConstantU32(state, 0u));
@@ -156,18 +153,12 @@ std::uint32_t SpirvValueEmitContext::FirstLane(std::uint32_t ballot) {
 
 std::uint32_t SpirvValueEmitContext::Shuffle(const IrValue& inst, std::size_t index, std::uint32_t lane) {
     const auto type = TypeId(state, inst.Argument(index)->Type());
-    const auto scope = ConstantU32(state, spv::ScopeSubgroup);
-    const auto low = state.module.AllocateId();
-    if (otherHalf == nullptr) {
-        state.module.AddFunction(spv::OpGroupNonUniformShuffle, type, low, scope, Arg(inst, index), EmitHostSubgroupLane(state, lane));
-        return low;
-    }
+    if (otherHalf == nullptr) return EmitLaneShuffle(state, type, Arg(inst, index), EmitHostSubgroupLane(state, lane));
     const auto physicalLane = EmitBinaryU32(state, spv::OpBitwiseAnd, lane, ConstantU32(state, 31u));
-    const auto high = state.module.AllocateId();
     const auto inHigh = state.module.AllocateId();
     const auto value = state.module.AllocateId();
-    state.module.AddFunction(spv::OpGroupNonUniformShuffle, type, low, scope, HalfArg(inst, index, 0u), physicalLane);
-    state.module.AddFunction(spv::OpGroupNonUniformShuffle, type, high, scope, HalfArg(inst, index, 1u), physicalLane);
+    const auto low = EmitLaneShuffle(state, type, HalfArg(inst, index, 0u), physicalLane);
+    const auto high = EmitLaneShuffle(state, type, HalfArg(inst, index, 1u), physicalLane);
     state.module.AddFunction(spv::OpINotEqual, TypeBool(state), inHigh, EmitBinaryU32(state, spv::OpBitwiseAnd, lane, ConstantU32(state, 32u)), ConstantU32(state, 0u));
     state.module.AddFunction(spv::OpSelect, type, value, inHigh, high, low);
     return value;

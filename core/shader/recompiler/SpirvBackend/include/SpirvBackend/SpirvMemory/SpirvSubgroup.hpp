@@ -8,6 +8,12 @@ namespace ShaderRecompiler {
 
 std::uint32_t EmitSubgroupLocalInvocationId(SpirvEmitterState& state);
 std::uint32_t EmitHostSubgroupLane(SpirvEmitterState& state, std::uint32_t lane);
+// A subgroup operation's result, stored and loaded back so that every lane runs the operation.
+std::uint32_t EmitConvergentResult(SpirvEmitterState& state, std::uint32_t type, std::uint32_t value);
+// OpGroupNonUniformShuffle of value from host lane, through EmitConvergentResult.
+std::uint32_t EmitLaneShuffle(SpirvEmitterState& state, std::uint32_t type, std::uint32_t value, std::uint32_t lane);
+// OpGroupNonUniformBallot of predicate, through EmitConvergentResult.
+std::uint32_t EmitLaneBallot(SpirvEmitterState& state, std::uint32_t predicate);
 std::uint32_t EmitWaveBallot(SpirvEmitterState& state, std::uint32_t ballot);
 DppTargetLane EmitDppGroupPermTargetLane(SpirvEmitterState& state, std::uint32_t subid, std::uint32_t control, std::uint32_t laneBits);
 DppTargetLane EmitDppRowShiftTargetLane(SpirvEmitterState& state, std::uint32_t subid, std::uint32_t amount, bool left);

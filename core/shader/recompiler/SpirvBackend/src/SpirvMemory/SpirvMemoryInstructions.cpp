@@ -1236,9 +1236,7 @@ std::uint32_t AppendConsume(SpirvValueEmitContext& ctx, const IrValue& inst, boo
         state.module.AddFunction(append ? spv::OpAtomicIAdd : spv::OpAtomicISub, TypeU32(state), value, EmitMemoryElementPointer(state, access, index), ConstantU32(state, gds ? spv::ScopeDevice : spv::ScopeWorkgroup), ConstantU32(state, spv::MemorySemanticsMaskNone), count);
         return value;
     });
-    const auto result = state.module.AllocateId();
-    state.module.AddFunction(spv::OpGroupNonUniformShuffle, TypeU32(state), result, ConstantU32(state, spv::ScopeSubgroup), atomic, EmitHostSubgroupLane(state, sourceLane));
-    return result;
+    return EmitLaneShuffle(state, TypeU32(state), atomic, EmitHostSubgroupLane(state, sourceLane));
 }
 
 template<typename TUpdate>

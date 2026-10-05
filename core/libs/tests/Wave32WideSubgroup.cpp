@@ -46,6 +46,8 @@ public:
             case spv::OpTypeInt:
             case spv::OpTypeBool:
             case spv::OpTypeVector:
+            case spv::OpTypePointer:
+            case spv::OpVariable:
                 continue;
             case spv::OpStore:
                 values[words[1]] = values.at(words[2]);
