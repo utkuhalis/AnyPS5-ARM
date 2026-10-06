@@ -1,11 +1,24 @@
 #include <elfpatcher/general/GuestModuleWriter.hpp>
 #include <elfpatcher/macos/MacOsImage.hpp>
 #include <elfpatcher/windows/WindowsLoadImage.hpp>
+#include <elfpatcher/windows/WindowsPeFormat.hpp>
 #include <io/BufferUtils.hpp>
 #include <algorithm>
 #include <map>
 
 namespace Elfpatcher {
+
+namespace {
+
+std::string DynamicName(const Relinker::GuestImage& guest, const std::size_t index) {
+    const auto& symbols = guest.Dynamic.DynSymData;
+    if ((index + 1) * 24 > symbols.size()) throw Domain::RelinkerException("Guest symbol index outside the dynamic symbol table");
+    const auto offset = Io::ReadU32(symbols, index * 24);
+    if (offset >= guest.Dynamic.DynStrData.size()) throw Domain::RelinkerException("Guest symbol name offset is out of bounds", offset);
+    return Windows::ReadString(guest.Dynamic.DynStrData, offset);
+}
+
+}
 
 // A bundled guest module as a Mach-O dylib. Its relocations are resolved the way the Windows writer
 // resolves them, except that dyld does the binding: imports are flat-namespace binds, so the guest
@@ -56,7 +69,7 @@ std::vector<std::uint8_t> GuestModuleWriter::WriteMacOs(const Relinker::GuestIma
                 if ((type == 16 && addend != 0) || (symbolIndex != 0 && !tlsSymbol)) throw Domain::RelinkerException("Invalid guest dynamic TLS relocation", target);
                 if (imported) {
                     image.WritePointer(target, 0);
-                    input.TlsImports.push_back({"_" + symbol.Name, rva, type == 16, static_cast<std::int64_t>(addend)});
+                    input.TlsImports.push_back({"_" + DynamicName(guest, symbolIndex), rva, type == 16, static_cast<std::int64_t>(addend)});
                 } else if (type == 16) {
                     image.WritePointer(target, 0);
                     input.TlsModuleSlots.push_back(rva);
@@ -74,7 +87,7 @@ std::vector<std::uint8_t> GuestModuleWriter::WriteMacOs(const Relinker::GuestIma
                     if (symbol.Name.empty()) throw Domain::RelinkerException("Empty guest import", target);
                     image.WritePointer(target, 0);
                     // __tls_get_addr comes from libkernel unless a guest module provides one.
-                    const auto name = guest.UsePlatformTlsResolver && symbol.Name == "vNe1w4diLCs" ? std::string("Aps5GuestTlsGetAddr_nid_no_patch") : symbol.Name;
+                    const auto name = guest.UsePlatformTlsResolver && symbol.Name == "vNe1w4diLCs" ? std::string("Aps5GuestTlsGetAddr_nid_no_patch") : DynamicName(guest, symbolIndex);
                     input.Binds.push_back({"_" + name, rva, static_cast<std::int64_t>(addend)});
                 }
             } else throw Domain::RelinkerException("Unsupported macOS guest relocation " + std::to_string(type), target);
@@ -83,14 +96,16 @@ std::vector<std::uint8_t> GuestModuleWriter::WriteMacOs(const Relinker::GuestIma
     apply(guest.Dynamic.RelaData);
     apply(guest.Dynamic.RelaPltData);
 
-    for (const auto& symbol : guest.Symbols) {
+    for (std::size_t index = 1; index < guest.Symbols.size(); ++index) {
+        const auto& symbol = guest.Symbols[index];
         if (symbol.Section == 0 || (symbol.Info >> 4) == 0 || symbol.Visibility == 1 || symbol.Visibility == 2) continue;
         if (symbol.Section >= 0xff00) throw Domain::RelinkerException("Unsupported guest export section: " + symbol.Name);
+        const auto name = "_" + DynamicName(guest, index);
         if ((symbol.Info & 15) == 6) {
-            input.TlsExports.push_back({"_" + symbol.Name, symbol.Value});
+            input.TlsExports.push_back({name, symbol.Value});
             continue;
         }
-        input.Exports.push_back({"_" + symbol.Name, image.GetRva(symbol.Value, std::max<std::uint64_t>(symbol.Size, 1))});
+        input.Exports.push_back({name, image.GetRva(symbol.Value, std::max<std::uint64_t>(symbol.Size, 1))});
     }
 
     for (const auto& dependency : dependencies) input.Dylibs.push_back(MachODependency(dependency, "@loader_path"));
