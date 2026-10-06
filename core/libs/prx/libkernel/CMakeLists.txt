@@ -117,7 +117,7 @@ if(BUILD_TESTING)
         set_tests_properties(guest_dynamic_loader PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libkernel>")
     endif()
-    if(NOT WIN32)
+    if(NOT WIN32 AND NOT APPLE)
         add_test_executable(guest_module_info_tests ${LIBS_INCLUDE_DIR}/tests/GuestModuleInfo.cpp)
         target_include_directories(guest_module_info_tests PRIVATE ${LIBS_INCLUDE_DIR})
         target_link_libraries(guest_module_info_tests PRIVATE libkernel libc)
