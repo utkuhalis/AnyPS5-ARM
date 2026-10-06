@@ -4,6 +4,7 @@
 #include "prx/libkernel/KernelErrors.hpp"
 #include "prx/libc/include/CpuTopology.hpp"
 #include <algorithm>
+#include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
@@ -54,6 +55,13 @@ static bool HostStackLimits(std::uintptr_t* low, std::uintptr_t* high) {
     GetCurrentThreadStackLimits(&lowLimit, &highLimit);
     *low = lowLimit;
     *high = highLimit;
+#elif defined(__APPLE__)
+    const pthread_t self = pthread_self();
+    auto* top = static_cast<std::byte*>(pthread_get_stackaddr_np(self));
+    const std::size_t size = pthread_get_stacksize_np(self);
+    if (top == nullptr || size == 0) return false;
+    *low = reinterpret_cast<std::uintptr_t>(top - size);
+    *high = reinterpret_cast<std::uintptr_t>(top);
 #else
     pthread_attr_t attr;
     if (pthread_getattr_np(pthread_self(), &attr) != 0)

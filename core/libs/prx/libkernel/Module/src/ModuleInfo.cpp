@@ -8,7 +8,7 @@
 #include "SceTypes.hpp"
 #include "prx/libc/include/General.hpp"
 #include "prx/libkernel/KernelErrors.hpp"
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__APPLE__)
 #include <dlfcn.h>
 #include <link.h>
 #include <unistd.h>
@@ -18,7 +18,7 @@ extern "C" std::int32_t ModuleIdForImage_nid_no_patch(const void* native);
 
 namespace {
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__APPLE__)
 constexpr char GuestModuleSuffix[] = ".guest.prx";
 constexpr std::int32_t ProtRead = 1;
 constexpr std::int32_t ProtWrite = 2;
@@ -163,7 +163,7 @@ int APS5_VABI sceKernelGetModuleInfoFromAddr(std::uint64_t address, int flags, M
     if (flags != 2) throw std::invalid_argument("sceKernelGetModuleInfoFromAddr: unsupported flags " + std::to_string(flags));
     if (info->st_size != sizeof(ModuleInfoEx))
         throw std::invalid_argument("sceKernelGetModuleInfoFromAddr: unsupported st_size " + std::to_string(info->st_size));
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
     (void)address;
     NotImplemented_nid_no_patch(__func__);
     return 0;
