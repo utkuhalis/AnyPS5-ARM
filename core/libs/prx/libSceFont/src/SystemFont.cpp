@@ -9,6 +9,7 @@
 #endif
 
 #include "prx/libSceFont/include/FontInternal.hpp"
+#include "prx/libc/include/specifics/macos/ExecutablePath.hpp"
 
 namespace {
 
@@ -91,6 +92,8 @@ std::filesystem::path ExecutableDirectory() {
     const auto length = GetModuleFileNameW(nullptr, module, MAX_PATH);
     if (length == 0 || length == MAX_PATH) throw std::runtime_error("libSceFont: cannot locate the executable");
     return std::filesystem::path(module).parent_path();
+#elif defined(__APPLE__)
+    return MacOsExecutablePath().parent_path();
 #else
     return std::filesystem::read_symlink("/proc/self/exe").parent_path();
 #endif
