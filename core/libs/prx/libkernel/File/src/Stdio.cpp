@@ -145,6 +145,7 @@ static std::int64_t NativePwrite(int descriptor, const void* buf, std::size_t nb
     return NativePositioned(descriptor, const_cast<void*>(buf), nbytes, offset, true);
 }
 #else
+#include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/file.h>
@@ -658,8 +659,17 @@ int64_t APS5_VABI sceKernelPwrite(int d, const void* buf, size_t nbytes, int64_t
     return result < 0 ? SceErrorFromErrno(errno) : result;
 }
 
+#ifdef __APPLE__
+static std::int64_t EmptyIovecs(int d) {
+    return ::fcntl(d, F_GETFD) < 0 ? SceErrorFromErrno(errno) : 0;
+}
+#endif
+
 int64_t APS5_VABI sceKernelReadv(int d, const KernelIovec* iov, int iovcnt) {
     if (const int error = CheckIovecs(iov, iovcnt)) return error;
+#ifdef __APPLE__
+    if (iovcnt == 0) return EmptyIovecs(d);
+#endif
     std::deque<GuestArena::HostWrite> destinations;
     if (!OpenIovecs(iov, iovcnt, destinations)) return SceErrorFromErrno(GUEST_EFAULT);
     const auto result = static_cast<std::int64_t>(::readv(d, NativeIovecs(iov), iovcnt));
@@ -668,6 +678,9 @@ int64_t APS5_VABI sceKernelReadv(int d, const KernelIovec* iov, int iovcnt) {
 
 int64_t APS5_VABI sceKernelWritev(int d, const KernelIovec* iov, int iovcnt) {
     if (const int error = CheckIovecs(iov, iovcnt)) return error;
+#ifdef __APPLE__
+    if (iovcnt == 0) return EmptyIovecs(d);
+#endif
     const auto result = static_cast<std::int64_t>(::writev(d, NativeIovecs(iov), iovcnt));
     return result < 0 ? SceErrorFromErrno(errno) : result;
 }
@@ -675,6 +688,9 @@ int64_t APS5_VABI sceKernelWritev(int d, const KernelIovec* iov, int iovcnt) {
 int64_t APS5_VABI sceKernelPreadv(int d, const KernelIovec* iov, int iovcnt, int64_t offset) {
     if (const int error = CheckIovecs(iov, iovcnt)) return error;
     if (offset < 0) return SceErrorFromErrno(GUEST_EINVAL);
+#ifdef __APPLE__
+    if (iovcnt == 0) return EmptyIovecs(d);
+#endif
     std::deque<GuestArena::HostWrite> destinations;
     if (!OpenIovecs(iov, iovcnt, destinations)) return SceErrorFromErrno(GUEST_EFAULT);
     const auto result = static_cast<std::int64_t>(::preadv(d, NativeIovecs(iov), iovcnt, static_cast<off_t>(offset)));
@@ -684,6 +700,9 @@ int64_t APS5_VABI sceKernelPreadv(int d, const KernelIovec* iov, int iovcnt, int
 int64_t APS5_VABI sceKernelPwritev(int d, const KernelIovec* iov, int iovcnt, int64_t offset) {
     if (const int error = CheckIovecs(iov, iovcnt)) return error;
     if (offset < 0) return SceErrorFromErrno(GUEST_EINVAL);
+#ifdef __APPLE__
+    if (iovcnt == 0) return EmptyIovecs(d);
+#endif
     const auto result = static_cast<std::int64_t>(::pwritev(d, NativeIovecs(iov), iovcnt, static_cast<off_t>(offset)));
     return result < 0 ? SceErrorFromErrno(errno) : result;
 }
