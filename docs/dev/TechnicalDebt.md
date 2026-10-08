@@ -297,7 +297,7 @@ Throughout the project, every function at every stage either **does exactly what
   - Metal has no 64-bit floats (the 7 agc_driver_f64_* tests and agc_driver_division_result_modifiers);
   - it has no 64-bit atomics (agc_driver_buffer_atomics*, agc_driver_global_atomics64, agc_driver_global_atomics_float, agc_driver_global_atomics_lanes);
   - MoltenVK offers no VK_KHR_shader_clock (agc_driver_shader_clock).
-- agc_driver_sdwa_float_selectors fails on macOS: an f16 multiply that should give -0.0 gives +0.0. In isolation, Metal keeps the sign through each step of the same chain (half to float, multiply, the software float-to-half conversion), so the difference comes from the shader as MoltenVK compiles it.
+- agc_driver_sdwa_float_selectors fails on macOS: an f16 multiply that should give -0.0 gives +0.0. In isolation, Metal keeps the sign through each step of the same chain (half to float, multiply, the software float-to-half conversion). The cause, found on an M1 Pro: SPIRV-Cross's MSL backend computes a precise multiplication as `fma(l, r, 0)`, which turns a -0.0 product into +0.0. A fix is submitted as KhronosGroup/SPIRV-Cross#2704; it reaches this project when MoltenVK takes that SPIRV-Cross.
 - The [SPIR-V backend](../../core/shader/recompiler/SpirvBackend) works around SPIRV-Cross, which MoltenVK uses to make Metal shaders:
   - ordered not-equal is emitted as not unordered-equal, because SPIRV-Cross writes OpFOrdNotEqual as `!=`;
   - NaN tests read the bits;
