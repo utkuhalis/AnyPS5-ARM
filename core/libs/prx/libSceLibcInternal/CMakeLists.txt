@@ -14,7 +14,7 @@ if(BUILD_TESTING)
         set_tests_properties(guest_thread_atexit PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceLibcInternal>")
     endif()
-    if(NOT WIN32)
+    if(NOT WIN32 AND NOT APPLE)
         add_test_executable(guest_force_tls_destructor_tests ${LIBS_INCLUDE_DIR}/tests/GuestForceTlsDestructor.cpp)
         target_include_directories(guest_force_tls_destructor_tests PRIVATE ${LIBS_INCLUDE_DIR})
         target_link_libraries(guest_force_tls_destructor_tests PRIVATE libSceLibcInternal libkernel libc ${CMAKE_DL_LIBS})

@@ -21,8 +21,17 @@ from test_linux_entry_argv import argv_fixture
 def relink_and_run(relinker, libraries, directory, expected, arguments=(), modules=False, relink_options=()):
     directory = pathlib.Path(directory)
     output = directory / "eboot"
+    source = directory / "eboot.elf"
+    if (directory / "sce_module").exists():
+        # The relinker also looks for the executable's needed modules below the executable's directory,
+        # so the link stubs (libc.prx, libkernel.prx) must not sit there.
+        staged = directory / "input"
+        staged.mkdir()
+        shutil.move(str(source), str(staged / "eboot.elf"))
+        shutil.move(str(directory / "sce_module"), str(staged / "sce_module"))
+        source = staged / "eboot.elf"
     options = [*relink_options] + ([] if modules else ["--skip-sce-module"])
-    relinked = subprocess.run([relinker, "--macos", *options, str(directory / "eboot.elf"), str(output)], capture_output=True, text=True, timeout=120)
+    relinked = subprocess.run([relinker, "--macos", *options, str(source), str(output)], capture_output=True, text=True, timeout=120)
     if relinked.returncode != 0:
         return f"relink failed: {relinked.stderr.strip()}"
     output.chmod(0o755)
