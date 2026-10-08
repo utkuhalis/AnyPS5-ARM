@@ -14,7 +14,9 @@
 #include <windows.h>
 #else
 #include <fcntl.h>
+#ifdef __linux__
 #include <linux/udmabuf.h>
+#endif
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -223,7 +225,7 @@ const char* createHostPointerImport(const Context& context, HostImport& entry, V
     return bindImport(context, entry, VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, &import, pointer.memoryTypeBits, allocated, failure);
 }
 
-#ifndef _WIN32
+#ifdef __linux__
 int udmabufDevice() {
     static const int device = open("/dev/udmabuf", O_RDWR | O_CLOEXEC);
     return device;
@@ -259,7 +261,7 @@ const char* createDmaBufImport(const Context& context, HostImport& entry, int fi
 
 const char* createImport(const Context& context, HostImport& entry, VkResult& failure) {
     const char* step = createHostPointerImport(context, entry, failure);
-#ifndef _WIN32
+#ifdef __linux__
     int file = -1;
     std::uint64_t offset = 0;
     if (step != nullptr && context.dmaBufImport && GuestArena::GuestArenaSharedBacking_nid_postfix(static_cast<std::uintptr_t>(entry.base), static_cast<std::size_t>(entry.bytes), &file, &offset)) step = createDmaBufImport(context, entry, file, offset, failure);
@@ -1248,6 +1250,10 @@ ImportProbe ProbeDmaBufImportWriteProtection(const Context& context) {
 #ifdef _WIN32
     static_cast<void>(context);
     probe.failure = "the Linux write watch";
+    return probe;
+#elif !defined(__linux__)
+    static_cast<void>(context);
+    probe.failure = "dma-buf import support";
     return probe;
 #else
     if (!context.dmaBufImport) {

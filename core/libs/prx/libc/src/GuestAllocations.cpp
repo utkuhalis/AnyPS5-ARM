@@ -73,7 +73,7 @@ void recordChange(void* mutation, const void* pointer, std::size_t bytes) {
     if (mutation != nullptr && bytes != 0) static_cast<MutationState*>(mutation)->changed.emplace_back(reinterpret_cast<std::uintptr_t>(pointer), bytes);
 }
 
-#ifndef _WIN32
+#ifdef __linux__
 std::vector<std::pair<std::uintptr_t, std::size_t>> fileBackedWritableImage() {
     const auto image = std::filesystem::read_symlink("/proc/self/exe").string();
     std::ifstream maps("/proc/self/maps");
