@@ -1088,6 +1088,8 @@ struct MockVulkan {
     std::map<VkBuffer, VkDeviceMemory> bufferMemory;
     std::map<VkDeviceMemory, std::vector<std::byte>> memories;
     std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
+    VkDescriptorSetLayoutCreateFlags layoutFlags = 0;
+    std::vector<VkDescriptorBindingFlags> layoutBindingFlags;
     std::vector<VkDescriptorPoolSize> poolSizes;
     std::uint32_t poolMaxSets = 0;
     VkDescriptorPoolCreateFlags poolFlags = 0;
@@ -1162,6 +1164,10 @@ VKAPI_ATTR void VKAPI_CALL mockFreeMemory(VkDevice, VkDeviceMemory, const VkAllo
 VKAPI_ATTR VkResult VKAPI_CALL mockCreateDescriptorSetLayout(VkDevice, const VkDescriptorSetLayoutCreateInfo* info, const VkAllocationCallbacks*, VkDescriptorSetLayout* layout) {
     *layout = makeHandle<VkDescriptorSetLayout>();
     mock.layoutBindings.assign(info->pBindings, info->pBindings + info->bindingCount);
+    mock.layoutFlags = info->flags;
+    const auto* bindingFlags = static_cast<const VkDescriptorSetLayoutBindingFlagsCreateInfo*>(info->pNext);
+    if (bindingFlags != nullptr) mock.layoutBindingFlags.assign(bindingFlags->pBindingFlags, bindingFlags->pBindingFlags + bindingFlags->bindingCount);
+    else mock.layoutBindingFlags.clear();
     ++mock.live;
     return VK_SUCCESS;
 }
@@ -1549,6 +1555,32 @@ void resourceTests() {
     expectSingleAccepted(changed([](auto& binding) { binding.count = 3; binding.guestDescriptor = join(join(vsharp(guestFirst.data(), 16), vsharp(guestSecond.data(), 32)), vsharp(reinterpret_cast<const void*>(0x1000), 8)); }), "an unmapped V# element");
     expectSingleFailure(changed([&](auto& binding) { binding.count = 2; binding.guestDescriptor = join(vsharp(guestFirst.data(), 16), vsharp(reinterpret_cast<const void*>(state.color.address), 64)); }), "aliases the render target");
     expectSingleFailure(changed([](auto& binding) { binding.count = 17; binding.guestDescriptor.assign(68, 0); }), "per-stage limits");
+    {
+        ShaderRecompiler::RecompileResult vertex;
+        ShaderRecompiler::RecompileResult fragment;
+        std::vector<std::uint32_t> words;
+        for (int index = 0; index < 17; ++index) words = join(words, vsharp(reinterpret_cast<const void*>(0x1000), 8));
+        vertex.bindings.push_back(makeBinding(Role::GuestBuffers, 0, 17, words));
+        auto updateAfterBind = mockContext();
+        updateAfterBind.descriptorIndexingLimits.maxPerStageDescriptorUpdateAfterBindStorageBuffers = 17;
+        updateAfterBind.descriptorIndexingLimits.maxPerStageUpdateAfterBindResources = 128;
+        updateAfterBind.descriptorIndexingLimits.maxDescriptorSetUpdateAfterBindStorageBuffers = 32;
+        mock = MockVulkan{};
+        {
+            AgcDriver::Graphics::ShaderResources resources(updateAfterBind, vertex, fragment, state.color, 0, 0);
+            Require(mock.layoutFlags == VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, "buffers above the per-stage limit did not get an update-after-bind layout");
+            Require(mock.layoutBindingFlags.size() == 1 && mock.layoutBindingFlags[0] == VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT, "the guest buffers binding is not update-after-bind");
+            Require(mock.poolFlags == VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT, "the update-after-bind set did not come from an update-after-bind pool");
+        }
+        Require(mock.live == 0, "update-after-bind shader resources leaked Vulkan objects");
+        updateAfterBind.descriptorIndexingLimits.maxPerStageDescriptorUpdateAfterBindStorageBuffers = 16;
+        expectFailure([&] { AgcDriver::Graphics::ShaderResources resources(updateAfterBind, vertex, fragment, state.color, 0, 0); }, "shader descriptors exceed per-stage limits");
+        Require(mock.live == 0, "failed update-after-bind shader resources leaked Vulkan objects");
+        mock = MockVulkan{};
+        vertex.bindings.front() = makeBinding(Role::GuestBuffers, 0, 1, vsharp(reinterpret_cast<const void*>(0x1000), 8));
+        { AgcDriver::Graphics::ShaderResources resources(updateAfterBind, vertex, fragment, state.color, 0, 0); }
+        Require(mock.layoutFlags == 0 && mock.layoutBindingFlags.empty() && mock.poolFlags == 0, "buffers within the per-stage limit took the update-after-bind path");
+    }
     {
         ShaderRecompiler::RecompileResult vertex;
         ShaderRecompiler::RecompileResult fragment;
