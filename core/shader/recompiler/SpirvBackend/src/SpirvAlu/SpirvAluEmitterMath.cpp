@@ -404,7 +404,7 @@ std::optional<HalfWaveScan> MatchHalfWaveScan(const IrValue* value) {
 
 std::optional<std::uint32_t> EmitHalfWaveReduction(SpirvValueEmitContext& ctx, const IrValue& inst, std::uint32_t lane) {
     auto& state = ctx.state;
-    if (state.program.WaveSize() != 64u || (lane & 31u) != 31u) return std::nullopt;
+    if (state.singleLane || state.program.WaveSize() != 64u || (lane & 31u) != 31u) return std::nullopt;
     const auto scan = MatchHalfWaveScan(inst.Argument(0));
     if (!scan) return std::nullopt;
     const auto read = "v_readlane_b32 of lane " + std::to_string(lane) + " of a wave64 half-wave reduction scan";

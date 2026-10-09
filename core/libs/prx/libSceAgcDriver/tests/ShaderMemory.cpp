@@ -916,12 +916,12 @@ void verifyPixelRequestSerialization() {
     minimal.context.waveSize = 64;
     minimal.context.pixel = ShaderPixelStageInfo{};
     const auto encoded = serializer.Serialize(minimal);
-    require(requestPrefix(encoded, 8u) == "NVNQQQ0AAAA=", "new requests did not use serialization version 13");
+    require(requestPrefix(encoded, 8u) == "NVNQQQ4AAAA=", "new requests did not use serialization version 14");
     constexpr std::size_t mappingOffset = 8u + 37u + 18u + 163u;
     for (std::size_t bytes = 0; bytes < 8u; ++bytes) {
         expectFailure([&] { static_cast<void>(serializer.Deserialize(requestPrefix(encoded, mappingOffset + bytes))); }, "truncated data", "a truncated version-12 pixel mapping was accepted");
     }
-    for (const auto unsupported : {"NVNQQQAAAAA=", "NVNQQQ4AAAA="}) {
+    for (const auto unsupported : {"NVNQQQAAAAA=", "NVNQQQ8AAAA="}) {
         expectFailure([&] { static_cast<void>(serializer.Deserialize(unsupported)); }, "serialization version", "an unsupported request version was accepted");
     }
 }
@@ -1893,6 +1893,9 @@ int main(int argc, char** argv) {
         auto narrowClock = uncached;
         narrowClock.target.narrowSubgroupClock = true;
         require(RequestSerializer{}.Deserialize(RequestSerializer{}.Serialize(narrowClock)).request.target.narrowSubgroupClock, "the narrow subgroup clock was lost in serialization");
+        auto fragmentOnly = narrowClock;
+        fragmentOnly.target.subgroupStages = 0x10u;
+        require(RequestSerializer{}.Deserialize(RequestSerializer{}.Serialize(fragmentOnly)).request.target.subgroupStages == 0x10u, "the subgroup stages were lost in serialization");
         auto changedLayout = request;
         changedLayout.layout.pushConstantSizeBytes = 64;
         require(!Recompile(changedLayout).cacheHit, "binding layout change reused an incompatible variant");

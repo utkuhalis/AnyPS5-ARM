@@ -217,6 +217,7 @@ struct SpirvTarget {
     bool nonConstantImageOffsets = false;
     std::uint32_t srgbDecodeFormats = 0;
     bool narrowSubgroupClock = false;
+    std::uint32_t subgroupStages = 0xffffffffu;
 };
 
 struct BindingLayout {

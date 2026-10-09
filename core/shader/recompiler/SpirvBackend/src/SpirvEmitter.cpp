@@ -18,6 +18,19 @@ namespace ShaderRecompiler {
 
 namespace {
 
+std::uint32_t SubgroupStageBit(IrShaderStage stage) {
+    switch (stage) {
+    case IrShaderStage::Local:
+    case IrShaderStage::Vertex: return 0x1u;
+    case IrShaderStage::TessellationControl: return 0x2u;
+    case IrShaderStage::TessellationEvaluation: return 0x4u;
+    case IrShaderStage::Pixel: return 0x10u;
+    case IrShaderStage::Mesh: return 0x80u;
+    default: return 0xffffffffu;
+    }
+}
+
+
 [[noreturn]] void FailProgram(const IrProgram& program, const char* reason) {
     throw std::runtime_error("SPIR-V emission failed: hash=0x" + std::to_string(program.Resources().shaderHash) + " stage=" + std::to_string(static_cast<unsigned>(program.Resources().stage)) + " reason=" + reason);
 }
@@ -131,6 +144,7 @@ std::uint32_t SpirvValueEmitContext::Ballot(const IrValue* predicate) {
 }
 
 std::uint32_t SpirvValueEmitContext::FirstLane(std::uint32_t ballot) {
+    if (state.singleLane) return ConstantU32(state, 0u);
     if (otherHalf == nullptr) {
         const auto result = state.module.AllocateId();
         state.module.AddFunction(spv::OpGroupNonUniformBallotFindLSB, TypeU32(state), result, ConstantU32(state, spv::ScopeSubgroup), ballot);
@@ -241,7 +255,13 @@ std::vector<std::uint32_t> SpirvEmitter::Emit(const IrProgram& program, const Sh
     state.nonConstantImageOffsets = target.nonConstantImageOffsets;
     state.narrowSubgroupClock = target.narrowSubgroupClock;
     state.hostSubgroupSize = target.subgroupSize;
-    state.splitSubgroup = program.WaveSize() == 32u && target.subgroupSize > 32u;
+    state.singleLane = (target.subgroupStages & SubgroupStageBit(program.Resources().stage)) == 0u;
+    state.splitSubgroup = !state.singleLane && program.WaveSize() == 32u && target.subgroupSize > 32u;
+    if (state.singleLane) {
+        state.requirements.subgroupBallot = false;
+        state.requirements.subgroupShuffle = false;
+        state.requirements.subgroupLocalInvocationId = false;
+    }
     if (state.splitSubgroup && (state.requirements.subgroupBallot || state.requirements.subgroupShuffle)) state.requirements.subgroupLocalInvocationId = true;
     const auto* workgroup = ShaderWorkgroupInputFor(state);
     state.laneCount = workgroup != nullptr && program.WaveSize() == 64u && workgroup->hostSubgroupSize == 32u ? 2u : 1u;

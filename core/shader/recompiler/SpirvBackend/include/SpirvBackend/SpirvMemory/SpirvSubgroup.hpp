@@ -14,6 +14,7 @@ std::uint32_t EmitConvergentResult(SpirvEmitterState& state, std::uint32_t type,
 std::uint32_t EmitLaneShuffle(SpirvEmitterState& state, std::uint32_t type, std::uint32_t value, std::uint32_t lane);
 // OpGroupNonUniformBallot of predicate, through EmitConvergentResult.
 std::uint32_t EmitLaneBallot(SpirvEmitterState& state, std::uint32_t predicate);
+std::uint32_t EmitSingleLaneBallot(SpirvEmitterState& state, std::uint32_t predicate);
 std::uint32_t EmitWaveBallot(SpirvEmitterState& state, std::uint32_t ballot);
 DppTargetLane EmitDppGroupPermTargetLane(SpirvEmitterState& state, std::uint32_t subid, std::uint32_t control, std::uint32_t laneBits);
 DppTargetLane EmitDppRowShiftTargetLane(SpirvEmitterState& state, std::uint32_t subid, std::uint32_t amount, bool left);
