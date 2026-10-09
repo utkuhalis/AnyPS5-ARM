@@ -2,6 +2,7 @@
 #include <cstddef>
 #include "SceTypes.hpp"
 #include "prx/libc/include/General.hpp"
+#include "prx/libc/include/specifics/macos/ExecutablePath.hpp"
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
@@ -28,6 +29,8 @@ std::filesystem::path EntitlementsPath() {
     const auto length = GetModuleFileNameW(nullptr, module, MAX_PATH);
     if (length == 0 || length == MAX_PATH) throw std::runtime_error("NpEntitlementAccess: cannot locate the executable");
     return std::filesystem::path(module).parent_path() / "anyps5-entitlements.ini";
+#elif defined(__APPLE__)
+    return MacOsExecutablePath().parent_path() / "anyps5-entitlements.ini";
 #else
     return std::filesystem::read_symlink("/proc/self/exe").parent_path() / "anyps5-entitlements.ini";
 #endif

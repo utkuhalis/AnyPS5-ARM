@@ -32,6 +32,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(NOT APPLE)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static -static-libgcc -static-libstdc++")
+else()
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fexperimental-library>)
+    add_link_options(-fexperimental-library)
 endif()
 
 if(BUILD_TESTING)

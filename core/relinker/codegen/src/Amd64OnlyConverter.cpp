@@ -27,6 +27,8 @@ auto _atFileOffset(const Domain::FileByteOffset base, const TOperation& operatio
 
 class Amd64OnlyConverter : public IAmd64OnlyConverter {
 public:
+    explicit Amd64OnlyConverter(const Amd64OnlyTarget target) : _matcher(MakeAmd64OnlyInstructionMatcher(target)) {}
+
     [[nodiscard]] ConvertResult Convert(
         std::vector<std::uint8_t> fileBytes,
         const std::vector<Domain::ProgramHeader>& codeSegments
@@ -40,7 +42,7 @@ private:
     };
 
     X64InstructionRewriter _rewriter;
-    std::unique_ptr<IAmd64OnlyInstructionMatcher> _matcher = MakeAmd64OnlyInstructionMatcher();
+    std::unique_ptr<IAmd64OnlyInstructionMatcher> _matcher;
     std::unique_ptr<IInstructionScanner> _scanner = MakeInstructionScanner();
 
     void _convertSegment(
@@ -207,8 +209,8 @@ ConvertResult Amd64OnlyConverter::Convert(
 
 }
 
-std::unique_ptr<IAmd64OnlyConverter> MakeAmd64OnlyConverter() {
-    return std::make_unique<Amd64OnlyConverter>();
+std::unique_ptr<IAmd64OnlyConverter> MakeAmd64OnlyConverter(const Amd64OnlyTarget target) {
+    return std::make_unique<Amd64OnlyConverter>(target);
 }
 
 }

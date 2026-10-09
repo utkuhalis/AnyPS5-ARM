@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <memory>
 #include <mutex>
+#include "prx/libc/include/general/AtomicSharedPtr.hpp"
 
 namespace AgcDriver::DriverDetail {
 
@@ -21,7 +22,7 @@ public:
     bool operator==(std::nullptr_t) const;
 
 private:
-    std::atomic<std::shared_ptr<VulkanDevice>> pointer;
+    AtomicSharedPtr<VulkanDevice> pointer;
 };
 
 class DeviceUseGate {

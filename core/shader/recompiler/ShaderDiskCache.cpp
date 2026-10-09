@@ -13,6 +13,9 @@
 #include <windows.h>
 #endif
 #include "ShaderCacheVersion.hpp"
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -53,7 +56,17 @@ std::filesystem::path ShaderCacheDirectory() {
     const char* directory = std::getenv("ANYPS5_SHADER_CACHE_DIR");
     if (directory != nullptr && *directory != '\0') return std::filesystem::path(directory);
     std::error_code error;
+#ifdef __APPLE__
+    // No /proc on macOS: dyld knows the executable's path.
+    std::uint32_t size = 0;
+    _NSGetExecutablePath(nullptr, &size);
+    std::string path(size, '\0');
+    if (_NSGetExecutablePath(path.data(), &size) != 0) return {};
+    path.resize(std::strlen(path.c_str()));
+    const auto executable = std::filesystem::canonical(path, error);
+#else
     const auto executable = std::filesystem::read_symlink("/proc/self/exe", error);
+#endif
     if (error) return {};
     return executable.parent_path() / "shader_cache";
 #endif

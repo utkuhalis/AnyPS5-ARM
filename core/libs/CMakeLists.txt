@@ -3,6 +3,20 @@ if(NOT WIN32)
     string(STRIP "${CMAKE_EXE_LINKER_FLAGS}" CMAKE_EXE_LINKER_FLAGS)
 endif()
 
+# The guest unwinder steps through the runtime's own frames, and on macOS it reads them from DWARF
+# (__eh_frame); ld64 otherwise folds that into compact unwind info and drops it.
+if(APPLE)
+    add_link_options(LINKER:-no_compact_unwind)
+endif()
+
+# A prx finds the others beside itself. The build-tree rpath would point a patched copy at the
+# unpatched libraries.
+function(configure_prx_rpath target)
+    if(APPLE)
+        set_target_properties(${target} PROPERTIES BUILD_WITH_INSTALL_RPATH ON INSTALL_RPATH "@loader_path")
+    endif()
+endfunction()
+
 add_executable(nid_patcher
         ${CMAKE_CURRENT_SOURCE_DIR}/nid/src/Sha1.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/nid/src/NidCompute.cpp
@@ -10,6 +24,7 @@ add_executable(nid_patcher
         ${CMAKE_CURRENT_SOURCE_DIR}/nid/src/ExportExclusions.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/nid/src/ElfNidPatcher.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/nid/src/PeNidPatcher.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/nid/src/MachONidPatcher.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/nid/src/BinaryPatcherFactory.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/nid/src/main.cpp
 )
@@ -46,6 +61,7 @@ set(LIBS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 add_subdirectory(${LIBC_DIR} ${CMAKE_CURRENT_BINARY_DIR}/prx/libc)
 target_include_directories(libc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 configure_windows_unwind(libc)
+configure_prx_rpath(libc)
 
 set(UNPATCHED_DIR ${CMAKE_CURRENT_BINARY_DIR}/libs/unpatched)
 set(PATCHED_DIR ${CMAKE_CURRENT_BINARY_DIR}/libs)
@@ -90,6 +106,7 @@ foreach(LIB_DIR ${LIBS_DIRS})
             configure_windows_unwind(${LIB_NAME})
         endif()
 
+        configure_prx_rpath(${LIB_NAME})
         if(LIB_NAME STREQUAL "libkernel")
             target_link_libraries(${LIB_NAME} PRIVATE libc)
         else()

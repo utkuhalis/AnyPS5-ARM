@@ -14,6 +14,8 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#elif defined(__APPLE__)
+#include <dlfcn.h>
 #else
 #include <dlfcn.h>
 #include <link.h>
@@ -35,6 +37,15 @@ const void* imageContaining(const void* address, bool reference, void*& handle, 
         throw std::runtime_error(std::string(caller) + ": address outside every loaded image");
     if (reference) handle = module;
     return module;
+#elif defined(__APPLE__)
+    Dl_info info{};
+    if (!dladdr(address, &info) || !info.dli_fbase)
+        throw std::runtime_error(std::string(caller) + ": address outside every loaded image");
+    if (reference && info.dli_fname && *info.dli_fname) {
+        handle = dlopen(info.dli_fname, RTLD_LAZY | RTLD_NOLOAD);
+        if (!handle) throw std::runtime_error(std::string(caller) + ": cannot reference " + info.dli_fname);
+    }
+    return info.dli_fbase;
 #else
     Dl_info info{};
     link_map* image = nullptr;

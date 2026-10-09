@@ -2,6 +2,14 @@
 #include <cstring>
 #include <stdexcept>
 #include <cstdio>
+#include <cstdarg>
+
+// clang only has the explicit System V va_list builtins on targets whose default ABI is not System V.
+#if defined(__clang__) && !defined(_WIN32)
+#define __builtin_sysv_va_list va_list
+#define __builtin_sysv_va_start va_start
+#define __builtin_sysv_va_end va_end
+#endif
 
 extern "C" {
 int APS5_VABI snprintf_nid_postfix(char*, size_t, const char*, ...);

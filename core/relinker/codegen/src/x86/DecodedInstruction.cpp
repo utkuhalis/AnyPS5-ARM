@@ -262,6 +262,53 @@ bool DecodedInstruction::IsMcommit() const {
     return Data[pos] == TwoByteOpcodeEscape && Data[pos + 1] == TwoByteGrp7 && Data[pos + 2] == 0xFA;
 }
 
+// RDSEED r: 0F C7 /7 with a register operand; RDPID r64 is the same with F3.
+bool DecodedInstruction::IsRdseed() const {
+    bool operandSizeOverride = false;
+    bool repnePrefix = false;
+    bool repPrefix = false;
+    const std::size_t pos = _skipPrefixesAndRex(&operandSizeOverride, &repnePrefix, &repPrefix);
+
+    if (repnePrefix || repPrefix || pos + 2 >= Length) {
+        return false;
+    }
+
+    const auto modrm = Data[pos + 2];
+    return Data[pos] == TwoByteOpcodeEscape && Data[pos + 1] == TwoByteGrp9 &&
+           ((modrm >> ModRmModShift) & ModRmModMask) == ModRmModRegister && ((modrm >> ModRmRegShift) & ModRmRegMask) == 7;
+}
+
+bool DecodedInstruction::IsRdpid() const {
+    bool operandSizeOverride = false;
+    bool repnePrefix = false;
+    bool repPrefix = false;
+    const std::size_t pos = _skipPrefixesAndRex(&operandSizeOverride, &repnePrefix, &repPrefix);
+
+    if (operandSizeOverride || repnePrefix || !repPrefix || pos + 2 >= Length) {
+        return false;
+    }
+
+    const auto modrm = Data[pos + 2];
+    return Data[pos] == TwoByteOpcodeEscape && Data[pos + 1] == TwoByteGrp9 &&
+           ((modrm >> ModRmModShift) & ModRmModMask) == ModRmModRegister && ((modrm >> ModRmRegShift) & ModRmRegMask) == 7;
+}
+
+// CLWB m8: 66 0F AE /6 with a memory operand (the register form is TPAUSE).
+bool DecodedInstruction::IsClwb() const {
+    bool operandSizeOverride = false;
+    bool repnePrefix = false;
+    bool repPrefix = false;
+    const std::size_t pos = _skipPrefixesAndRex(&operandSizeOverride, &repnePrefix, &repPrefix);
+
+    if (!operandSizeOverride || repnePrefix || repPrefix || pos + 2 >= Length) {
+        return false;
+    }
+
+    const auto modrm = Data[pos + 2];
+    return Data[pos] == TwoByteOpcodeEscape && Data[pos + 1] == TwoByteGrp15 &&
+           ((modrm >> ModRmModShift) & ModRmModMask) != ModRmModRegister && ((modrm >> ModRmRegShift) & ModRmRegMask) == 6;
+}
+
 bool DecodedInstruction::IsMovntss() const {
     bool operandSizeOverride = false;
     bool repnePrefix = false;

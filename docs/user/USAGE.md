@@ -27,6 +27,15 @@ Windows output:
 relinker --windows source/input.elf app.exe
 ```
 
+macOS output (x86-64, runs under Rosetta on Apple silicon), packaged as an application that starts without the Vulkan SDK:
+
+```sh
+relinker --macos --to-intel source/input.elf out/eboot
+python3 tools/package_macos_app.py --relinked out --game source --libs build/core/libs/libs --vulkan ~/VulkanSDK/<version>/macOS Title.app
+```
+
+The bundle holds the title, the prx libraries, the Vulkan loader and MoltenVK. It writes its shader cache to `~/Library/Caches/<bundle id>` and its output to `~/Library/Logs/AnyPS5/<title id>.log`.
+
 Add `--to-intel` for Intel hosts. The output format defaults to Linux ELF regardless of the filename; `.exe` alone does not select Windows.
 
 ## Options
@@ -38,7 +47,7 @@ All switches are disabled by default. `unused-filter` defaults to `0`; `--rpath`
 | `--windows`                   | Produce a Windows PE executable.                                                                                                                                                                                                                                                                                        |
 | `--windows-diagnostics`       | Include startup dependency diagnostics. Requires `--windows`.                                                                                                                                                                                                                                                           |
 | `--windows-gui`               | Select the Windows GUI subsystem instead of the console subsystem. Requires `--windows`.                                                                                                                                                                                                                                |
-| `--to-intel`                  | Convert supported AMD-only instructions in the executable and bundled modules. Unsupported instructions or unreachable conversion stubs cause an error.                                                                                                                                                                 |
+| `--to-intel`                  | Convert supported AMD-only instructions in the executable and bundled modules. With `--macos` the host is Rosetta, which also lacks RDSEED, RDPID and CLWB; they are converted as well. Unsupported instructions or unreachable conversion stubs cause an error.                                                                                                                                                                 |
 | `unused-filter=0`             | Keep all imported NID references.                                                                                                                                                                                                                                                                                       |
 | `unused-filter=1`             | Filter unused non-PLT imports using control-flow and GOT access analysis; preserve PLT imports.                                                                                                                                                                                                                         |
 | `unused-filter=2`             | Apply strict unused-import analysis and compact the PLT. Unsupported analysis cases cause an error.                                                                                                                                                                                                                     |

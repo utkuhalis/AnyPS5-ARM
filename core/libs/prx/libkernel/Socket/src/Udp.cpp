@@ -389,7 +389,15 @@ int APS5_VABI ioctl_nid_postfix(int descriptor, std::uint64_t request, void* arg
     const auto result = ioctlsocket(socket->value, request == 0x8004667e ? FIONBIO : FIONREAD, &value);
 #else
     int nativeValue = static_cast<int>(value);
+#ifdef __APPLE__
+    // macOS FIONREAD also counts each datagram's source address; SO_NREAD is the next datagram's size.
+    socklen_t valueSize = sizeof(nativeValue);
+    const auto result = request == 0x4004667f && socket->type == 2
+        ? ::getsockopt(socket->value, SOL_SOCKET, SO_NREAD, &nativeValue, &valueSize)
+        : ::ioctl(socket->value, request == 0x8004667e ? FIONBIO : FIONREAD, &nativeValue);
+#else
     const auto result = ::ioctl(socket->value, request == 0x8004667e ? FIONBIO : FIONREAD, &nativeValue);
+#endif
     value = static_cast<unsigned long>(nativeValue);
 #endif
     if (result) return Fail(NativeError());
