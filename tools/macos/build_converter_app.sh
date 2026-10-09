@@ -18,7 +18,7 @@ mkdir -p "$3"
 output="$(cd "$3" && pwd)"
 source="$root/tools/macos/converter"
 app="$output/AnyPS5.app"
-version="$(git -C "$root" describe --tags --always 2>/dev/null || echo 0.0.0)"
+version="$(git -C "$root" describe --tags --always 2>/dev/null | sed "s/^v//" || echo 0.0.0)"
 
 swift build --package-path "$source" -c release --arch arm64 --arch x86_64
 binary="$(swift build --package-path "$source" -c release --arch arm64 --arch x86_64 --show-bin-path)/AnyPS5"
