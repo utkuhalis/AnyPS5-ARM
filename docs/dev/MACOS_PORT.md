@@ -1,46 +1,57 @@
-# Apple Silicon (macOS) port
+# Apple Silicon (macOS) port: fork status
 
-Status: feasibility done, native port in progress. Nothing runs on macOS yet.
+This branch combines current `main` with the community macOS port from [mugurc/AnyPS5 `macos-port`](https://github.com/mugurc/AnyPS5/tree/macos-port), which upstream is reviewing in pieces (#927, #1597, #1499, #1686). It adds the fixes needed to build and run on top of current `main`.
 
-## Approach
+Guest code stays x86-64 and runs under Rosetta 2. The relinker writes Mach-O (`--macos`), the prx libraries build as x86-64 dylibs, and Vulkan runs through MoltenVK. Apple has announced that macOS 27 is the last release with full Rosetta support, so this route has a limited lifetime.
 
-Guest code stays x86-64 and runs under Rosetta 2, the same way as on an x86-64 host: no emulator is added. The port has three parts:
+## Build
 
-1. The system libraries in [core/libs/prx](../../core/libs/prx) build as x86-64 macOS dylibs (`-DCMAKE_OSX_ARCHITECTURES=x86_64`).
-2. A macOS ELF loader maps the relinker's Linux ELF output and binds its NID imports to those dylibs. The libraries already assume ELF guest images (`dl_iterate_phdr`, `link_map`, `.eh_frame_hdr`), so loading ELF keeps them unchanged. Writing Mach-O instead would mean reworking all of that.
-3. Vulkan runs through MoltenVK.
+```sh
+git submodule update --init --recursive
+cmake -S . -B build-mac -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64 -DBUILD_TESTING=ON
+ninja -C build-mac all libs
+```
 
-A native ARM64 build was rejected: it would need a full x86-64 to ARM64 binary translator.
+Requirements:
 
-## Feasibility results
+- Xcode command-line tools
+- Rosetta 2
+- Ninja
+- the [Vulkan SDK](https://vulkan.lunarg.com/sdk/home#mac) (universal loader and MoltenVK)
+- for the guest fixtures only: `brew install llvm lld`
 
-The probes are in [tools/macos/spikes](../../tools/macos/spikes) (`run.sh [libMoltenVK.dylib]`). They were measured on an M3 Pro with macOS 26.6 and MoltenVK 1.4.2.
+## Run
+
+```sh
+build-mac/core/relinker/relinker --macos --to-intel source/eboot.bin out/eboot
+python3 tools/package_macos_app.py --relinked out --game source --libs build-mac/core/libs/libs --vulkan ~/VulkanSDK/<version>/macOS Title.app
+```
+
+## Status
+
+Measured on an M3 Pro with macOS 26.6, Vulkan SDK 1.4.363.0 and MoltenVK:
 
 | Check | Result |
 |---|---|
-| `gs:` TSD and pthread key reads | work |
-| AVX2, FMA, BMI2 | work |
-| JIT and self-modifying code, 4 KiB `mprotect` | work (link with `-Wl,-pagezero_size,0x4000`) |
-| `fs` base (`wrfsbase`, default `fs:` reads) | **unavailable**: SIGILL and SIGSEGV |
-| Guest arena `0x2_0000_0000`–`0xFC_0000_0000` | free except `0x2_0000_0000`–`0x2_1000_0000` and `0xF_C000_0000`–`0x70_0000_0000` (Rosetta) |
+| Full build (all targets and 115 prx libraries) | builds |
+| `macos_fixtures`: argv, imports, TLS, C++ exceptions, C cleanup, threads, modules, TLS across modules, `--to-intel` | 10/10 run under Rosetta |
+| Breakout guest (video out, pad, audio out), relinked and packaged as `.app` | runs at about 60 fps |
+| Commercial titles | not tested yet |
 
-Consequences:
+Changes on top of the merged port:
 
-- Linux output keeps `fs:` TLS accesses, and they cannot run here. The relinker needs a mode that rewrites them, as [WindowsTlsBuilder](../../core/relinker/elfpatcher/src/windows/WindowsTlsBuilder.cpp) does for PE. The resolver would read a pthread key slot through `gs:` instead of the TEB.
-- [GuestArena](../../core/libs/prx/libc/src/GuestArena.cpp) needs a second reserved hole for the Rosetta range.
+- [GuestMemory.cpp](../../core/libs/prx/libSceAgcDriver/Execution/src/GuestMemory.cpp) and [DynamicLoader.cpp](../../core/libs/prx/libkernel/Module/src/DynamicLoader.cpp) compile on macOS. `main` had added Linux-only code to both after the port was based.
+- When the device has no `robustness2.nullDescriptor` (MoltenVK), the empty slots of the typed image heaps that `main` introduced bind zeroed [padding images](../../core/libs/prx/libSceAgcDriver/Graphics/src/PaddingImages.cpp). Before this, every draw and dispatch failed on macOS.
 
-MoltenVK provides every hard Vulkan requirement except `robustness2.nullDescriptor`. That feature only fills unused slots of typed image heaps ([ShaderResources.cpp](../../core/libs/prx/libSceAgcDriver/Graphics/src/ShaderResources.cpp)), so binding a 1x1 dummy image there works around it. Geometry shaders, mesh shaders, `shaderFloat64`, `depthBounds` and conservative rasterization are missing; titles that need them will not run.
+## Feasibility probes
 
-## Build status (x86_64 macOS, full build)
+[tools/macos/spikes](../../tools/macos/spikes) holds the probes used to choose this route:
 
-Configuration succeeds, including the FFmpeg macOS x64 prebuilt. 14 objects fail:
+- gs TSD reads
+- AVX2, FMA and BMI2
+- JIT code
+- fs base: unavailable under Rosetta
+- the guest arena layout
+- MoltenVK features
 
-- ELF-only assembler directives (`.type`, `.size`, `.hidden`) and missing `_` symbol prefixes: `JumpBuffer.cpp`, `RegisterContext.cpp`, `libSceFiber/Export.cpp`, `ExportMacros.hpp`
-- `link.h`: `GuestAllocations.cpp`, `Rtld.cpp`, `ModuleInfo.cpp`, `DynamicLoader.cpp`
-- Linux APIs: `dirent64`/`getdents64`, `st_*tim`, `RUSAGE_THREAD`, `sched_getcpu`, `pthread_getattr_np`
-- `DirectMemory.cpp` treats non-Linux as Windows
-- `std::chrono::clock_cast` (libc++)
-- `-Wl,--no-as-needed`
-- `__builtin_sysv_va_*` in tests
-
-[nid_patcher](../../core/libs/nid) handles only ELF and PE, so Mach-O export renaming is still to be done.
+Run them with `run.sh [libMoltenVK.dylib]`.
