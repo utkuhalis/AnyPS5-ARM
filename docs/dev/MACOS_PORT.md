@@ -36,12 +36,31 @@ Measured on an M3 Pro with macOS 26.6, Vulkan SDK 1.4.363.0 and MoltenVK:
 | Full build (all targets and 115 prx libraries) | builds |
 | `macos_fixtures`: argv, imports, TLS, C++ exceptions, C cleanup, threads, modules, TLS across modules, `--to-intel` | 10/10 run under Rosetta |
 | Breakout guest (video out, pad, audio out), relinked and packaged as `.app` | runs at about 60 fps |
+| ctest, full suite on MoltenVK | 471 of 483 pass |
 | Commercial titles | not tested yet |
+
+The 12 tests that still fail:
+
+- **Apple GPU or Metal limits (7):**
+  - 64-bit buffer atomics: `buffer_unaligned_base`
+  - shaderFloat64: `interpolation_f16`
+  - 32 KiB threadgroup memory against the 40 KiB LDS the test uses: `lds_src2`
+  - multisampled storage images: the four `prepared_shaders*` tests
+- **A product that should give `-0.0` gives `+0.0` (4):** `f32_denormal_flush`, `f32_output_modifier`, `packed_alu`, `sdwa_float_selectors`. See [TechnicalDebt](TechnicalDebt.md).
+- **`pixel_interlock`:** SPIRV-Cross writes MSL that Metal rejects for fragment shader interlock.
 
 Changes on top of the merged port:
 
 - [GuestMemory.cpp](../../core/libs/prx/libSceAgcDriver/Execution/src/GuestMemory.cpp) and [DynamicLoader.cpp](../../core/libs/prx/libkernel/Module/src/DynamicLoader.cpp) compile on macOS. `main` had added Linux-only code to both after the port was based.
-- When the device has no `robustness2.nullDescriptor` (MoltenVK), the empty slots of the typed image heaps that `main` introduced bind zeroed [padding images](../../core/libs/prx/libSceAgcDriver/Graphics/src/PaddingImages.cpp). Before this, every draw and dispatch failed on macOS.
+- When the device has no `robustness2.nullDescriptor` (MoltenVK), the empty slots of the typed image heaps bind zeroed [padding images](../../core/libs/prx/libSceAgcDriver/Graphics/src/PaddingImages.cpp). Before this, every draw and dispatch failed on macOS.
+- Shader stages without host subgroups (MoltenVK: vertex and tessellation evaluation) run each invocation as a one-lane wave instead of failing validation.
+- Guest thread destructors register through `_tlv_atexit`. libSystem's `__cxa_thread_atexit` returns void, and reading its result as an int freed a live registration twice.
+- `dlsym`'s default scope finds the main program through dyld.
+- MoltenVK's Metal argument buffers are enabled through `VK_EXT_layer_settings`. Together with upstream #1580 (merged here), they lift the 31 storage buffers per stage limit.
+- Test fixes for macOS:
+  - case-insensitive APFS in `guest_path_case`
+  - the portability loader in `oversized_descriptor_sets`
+  - the fixtures' temporary directory, about 720 MiB per run, is now cleaned up
 
 ## Feasibility probes
 
