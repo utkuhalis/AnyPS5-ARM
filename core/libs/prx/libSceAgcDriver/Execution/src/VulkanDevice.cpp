@@ -629,6 +629,20 @@ VulkanDevice::VulkanDevice(const PresentationWindow* window) : state(std::make_u
     // MoltenVK is a portability driver: the loader lists it only for instances that opt in.
     instanceExtensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
     create.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+    const std::int32_t metalArgumentBuffers = 1;
+    const VkLayerSettingEXT moltenSetting{"MoltenVK", "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS", VK_LAYER_SETTING_TYPE_INT32_EXT, 1, &metalArgumentBuffers};
+    const VkLayerSettingsCreateInfoEXT moltenSettings{VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT, nullptr, 1, &moltenSetting};
+    if (std::getenv("MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS") == nullptr) {
+        std::uint32_t layerExtensionCount = 0;
+        const auto enumerateLayerExtensions = state->InstanceFunction<PFN_vkEnumerateInstanceExtensionProperties>("vkEnumerateInstanceExtensionProperties");
+        check(enumerateLayerExtensions(nullptr, &layerExtensionCount, nullptr), "vkEnumerateInstanceExtensionProperties");
+        std::vector<VkExtensionProperties> layerExtensions(layerExtensionCount);
+        check(enumerateLayerExtensions(nullptr, &layerExtensionCount, layerExtensions.data()), "vkEnumerateInstanceExtensionProperties");
+        if (std::any_of(layerExtensions.begin(), layerExtensions.end(), [](const auto& item) { return std::strcmp(item.extensionName, VK_EXT_LAYER_SETTINGS_EXTENSION_NAME) == 0; })) {
+            instanceExtensions.push_back(VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);
+            create.pNext = &moltenSettings;
+        }
+    }
 #endif
     create.enabledExtensionCount = static_cast<std::uint32_t>(instanceExtensions.size());
     create.ppEnabledExtensionNames = instanceExtensions.empty() ? nullptr : instanceExtensions.data();
