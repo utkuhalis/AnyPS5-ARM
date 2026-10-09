@@ -9,6 +9,7 @@
 #include <thread>
 #include <vector>
 #include <atomic>
+#include <chrono>
 #include <stdexcept>
 #include "prx/libc/include/Shutdown.hpp"
 
@@ -113,6 +114,15 @@ extern "C" {
     exitRequested.store(true);
     if (exitStarted.exchange(true)) LibcAwaitExit_nid_postfix();
     LibcRunShutdown_nid_postfix();
+#ifdef __APPLE__
+    // exit runs the guest images' finalizers, and on macOS one in PPSA02929's libc.prx waits forever,
+    // so the exit is bounded.
+    std::thread([code] {
+        std::this_thread::sleep_for(std::chrono::seconds(3));
+        std::fflush(nullptr);
+        std::_Exit(code);
+    }).detach();
+#endif
     std::exit(code);
 }
 
