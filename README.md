@@ -34,6 +34,26 @@ Measured on a MacBook Pro M3 Pro running macOS 26.6.2 with Vulkan SDK 1.4.363.0.
 |---|---|
 | ![Main menu at 59.95 fps](docs/screenshots/dreaming-sarah-menu.jpg) | ![Opening scene at 60 fps](docs/screenshots/dreaming-sarah-intro.jpg) |
 
+### Quick start: the AnyPS5 app
+
+The easiest way needs no Terminal, Vulkan SDK or build:
+
+1. Download **AnyPS5-macOS.zip** from the [latest release](https://github.com/utkuhalis/AnyPS5-ARM/releases/latest), unzip it and move **AnyPS5.app** to Applications.
+2. Open it. The app is not notarized, so the first time macOS blocks it. Open **System Settings → Privacy & Security** and click **Open Anyway**, or run `xattr -dr com.apple.quarantine /Applications/AnyPS5.app` once.
+3. Follow the four steps:
+   - **This Mac** checks Apple silicon and Rosetta 2, and installs Rosetta if it is missing.
+   - **Game** takes the game folder: drag it onto the window, or onto AnyPS5 in the Dock.
+   - **Convert** builds the game's app in a few seconds.
+   - **Play** opens the game.
+
+| Choose the game | Converting | Ready to play |
+|---|---|---|
+| ![Choosing the game folder](docs/screenshots/converter-game.jpg) | ![Converting](docs/screenshots/converter-converting.jpg) | ![Ready to play](docs/screenshots/converter-done.jpg) |
+
+The app checks the folder before converting. If the dump's `eboot.bin` is signed but has a decrypted `.esbak` backup next to it, the backup is used. The converted game lands in `/Applications`, or in `~/Applications` if `/Applications` is not writable, and starts on its own from then on.
+
+The sections below do the same from the command line, starting with building from source.
+
 ### Requirements
 
 - A Mac with Apple silicon (M1 or newer)
@@ -93,6 +113,8 @@ python3 tools/package_macos_app.py \
 The bundle contains everything it needs: the game, the system libraries, the Vulkan loader and MoltenVK. Its name and icon come from `sce_sys/param.json` and `icon0.png`. You can move it to `/Applications` and start it from Finder or Launchpad.
 
 The app is not signed. If macOS refuses to open it, right-click it and choose **Open** once.
+
+To build AnyPS5.app itself from this build, run `tools/macos/build_converter_app.sh build-mac ~/VulkanSDK/<version>/macOS dist`.
 
 ### 4. Play
 
@@ -167,6 +189,26 @@ AnyPS5-ARM, [AnyPS5](https://github.com/boykopovar/AnyPS5)'in macOS sürümüdü
 |---|---|
 | ![Ana menü, 59.95 FPS](docs/screenshots/dreaming-sarah-menu.jpg) | ![Açılış sahnesi, 60 FPS](docs/screenshots/dreaming-sarah-intro.jpg) |
 
+### Hızlı başlangıç: AnyPS5 uygulaması
+
+En kolay yol; Terminal, Vulkan SDK ya da derleme gerektirmez:
+
+1. [Son sürümden](https://github.com/utkuhalis/AnyPS5-ARM/releases/latest) **AnyPS5-macOS.zip** dosyasını indir, zip'i aç ve **AnyPS5.app**'i Uygulamalar klasörüne taşı.
+2. Aç. Uygulama Apple tarafından onaylanmadığı (notarize edilmediği) için macOS ilk seferde engeller. **Sistem Ayarları → Gizlilik ve Güvenlik**'e gidip **Yine de Aç**'a tıkla ya da bir kere `xattr -dr com.apple.quarantine /Applications/AnyPS5.app` çalıştır.
+3. Dört adımı takip et:
+   - **Bu Mac:** Apple silicon ve Rosetta 2 kontrol edilir; Rosetta yoksa kurulur.
+   - **Oyun:** Oyun klasörünü pencereye ya da Dock'taki AnyPS5 simgesine sürükle.
+   - **Dönüştür:** Oyunun uygulaması birkaç saniyede oluşturulur.
+   - **Oyna:** Oyun açılır.
+
+| Oyunu seç | Dönüştürülüyor | Oynamaya hazır |
+|---|---|---|
+| ![Oyun klasörünü seçme](docs/screenshots/converter-game.jpg) | ![Dönüştürme](docs/screenshots/converter-converting.jpg) | ![Oynamaya hazır](docs/screenshots/converter-done.jpg) |
+
+Uygulama, dönüştürmeden önce klasörü kontrol eder. Dump'taki `eboot.bin` imzalıysa ama yanında şifresi çözülmüş bir `.esbak` yedeği varsa, o yedek kullanılır. Dönüştürülen oyun `/Applications` klasörüne kaydedilir; oraya yazılamıyorsa `~/Applications` kullanılır. Bundan sonra oyunu doğrudan açabilirsin.
+
+Aşağıdaki bölümler aynı işi komut satırından yapar; kaynak koddan derlemeyle başlar.
+
 ### Gereksinimler
 
 - Apple silicon işlemcili bir Mac (M1 veya daha yenisi)
@@ -226,6 +268,8 @@ python3 tools/package_macos_app.py \
 Paket, çalışmak için gereken her şeyi içerir: oyun, sistem kütüphaneleri, Vulkan yükleyicisi ve MoltenVK. Adı ve simgesi `sce_sys/param.json` ile `icon0.png`'den alınır. Uygulamayı `/Applications` klasörüne taşıyıp Finder'dan ya da Launchpad'den açabilirsin.
 
 Uygulama imzasız. macOS açmayı reddederse, uygulamaya sağ tıklayıp bir kere **Aç**'ı seç.
+
+AnyPS5.app'in kendisini bu derlemeden üretmek için `tools/macos/build_converter_app.sh build-mac ~/VulkanSDK/<sürüm>/macOS dist` çalıştır.
 
 ### 4. Oynama
 
