@@ -37,7 +37,7 @@ Measured on an M3 Pro with macOS 26.6, Vulkan SDK 1.4.363.0 and MoltenVK:
 | `macos_fixtures`: argv, imports, TLS, C++ exceptions, C cleanup, threads, modules, TLS across modules, `--to-intel` | 10/10 run under Rosetta |
 | Breakout guest (video out, pad, audio out), relinked and packaged as `.app` | runs at about 60 fps |
 | ctest, full suite on MoltenVK | 471 of 483 pass |
-| Commercial titles | not tested yet |
+| Dreaming Sarah (PPSA02929), relinked with `--macos --to-intel` | boots to the animated main menu; about 19 fps measured while dumping every 60th frame |
 
 The 12 tests that still fail:
 
@@ -56,6 +56,9 @@ Changes on top of the merged port:
 - Shader stages without host subgroups (MoltenVK: vertex and tessellation evaluation) run each invocation as a one-lane wave instead of failing validation.
 - Guest thread destructors register through `_tlv_atexit`. libSystem's `__cxa_thread_atexit` returns void, and reading its result as an int freed a live registration twice.
 - `dlsym`'s default scope finds the main program through dyld.
+- Guest `mprotect` rounds to 16 KiB pages relative to the guest image's load bias. dyld only aligns a slide to 4 KiB, so rounding the absolute address protected the wrong pages (SIGBUS in Dreaming Sarah). Guest segments get maxprot rwx, and the image's no-access padding segments are registered.
+- Without storage MSAA, multisampled image dimensions are emitted single-sample. This matches the single-sample images the driver creates; Dreaming Sarah's first shader clears an MSAA surface with `image_store`.
+- Merged upstream #1653: no fragment barycentric on MoltenVK. SPIRV-Cross cannot write `PerVertexKHR` to MSL.
 - MoltenVK's Metal argument buffers are enabled through `VK_EXT_layer_settings`. Together with upstream #1580 (merged here), they lift the 31 storage buffers per stage limit.
 - Test fixes for macOS:
   - case-insensitive APFS in `guest_path_case`
