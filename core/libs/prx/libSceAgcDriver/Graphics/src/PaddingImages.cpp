@@ -88,7 +88,8 @@ bool PaddingImages::create(std::uint32_t heapBinding, Entry& entry) {
     const bool comparison = !storage && heapBinding >= FirstComparisonImageBinding;
     const auto first = storage ? FirstStorageImageBinding : comparison ? FirstComparisonImageBinding : FirstImageBinding;
     const auto numericClass = (heapBinding - first) / 7u;
-    const auto shape = ShapeOf((heapBinding - first) % 7u);
+    auto shape = ShapeOf((heapBinding - first) % 7u);
+    if (!context.storageImageMultisample) shape.samples = VK_SAMPLE_COUNT_1_BIT;
     VkFormat format;
     if (comparison) format = VK_FORMAT_D32_SFLOAT;
     else if (!storage) format = numericClass == 0u ? VK_FORMAT_R8G8B8A8_UNORM : numericClass == 1u ? VK_FORMAT_R8G8B8A8_UINT : VK_FORMAT_R8G8B8A8_SINT;

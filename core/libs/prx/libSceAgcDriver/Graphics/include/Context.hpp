@@ -142,6 +142,7 @@ struct Context {
     bool geometryShader = false;
     bool sampleRateShading = false;
     bool nullDescriptors = false;
+    bool storageImageMultisample = false;
     const PaddingImages* paddingImages = nullptr;
     bool primitiveListRestart = false;
     bool imageViewMinLod = false;

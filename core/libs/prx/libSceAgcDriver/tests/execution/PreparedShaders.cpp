@@ -150,43 +150,51 @@ void PrepareMultisampledStorage(AgcDriver::VulkanDevice& device) {
     request.target = device.ComputeTarget(32);
     request.layout.pushConstantSizeBytes = 128;
     request.useCache = false;
-    for (std::uint32_t variant = 0; variant < 5; ++variant) {
-        if (variant != 0u) {
-            code[10] = variant % 2u != 0u ? 0xf0200f38u : 0xf0200f30u;
+    const auto check = [&](bool multisampled) {
+        for (std::uint32_t variant = 0; variant < 5; ++variant) {
+            code[10] = variant == 0u ? 0xf0200f38u : variant % 2u != 0u ? 0xf0200f38u : 0xf0200f30u;
             if (variant >= 3u) code[10] = variant == 3u ? 0xf03c0138u : 0xf03c0130u;
-            code[5] = 0x7e060283u;
-            code[4] = 0x7e040282u;
-        }
-        const auto handle = PrepareShader(request);
-        const auto& artifact = GetPreparedArtifact(*handle);
-        std::vector<std::uint32_t> samples;
-        for (std::size_t offset = 5; offset < artifact.spirv.size(); offset += artifact.spirv[offset] >> 16u) {
-            const auto instruction = artifact.spirv[offset];
-            if ((instruction & 0xffffu) == spv::OpImageWrite) {
-                Require(variant < 3u && (instruction >> 16u) == 6u && artifact.spirv[offset + 4] == spv::ImageOperandsSampleMask, "MSAA storage write lost its sample operand");
-                samples.push_back(artifact.spirv[offset + 5]);
-            }
-            if ((instruction & 0xffffu) == spv::OpImageTexelPointer) {
-                Require(variant >= 3u && (instruction >> 16u) == 6u, "MSAA atomic lost its sample operand");
-                samples.push_back(artifact.spirv[offset + 5]);
-            }
-        }
-        Require(!samples.empty(), "MSAA storage shader has no image writes or atomics");
-        const auto expectedSample = variant == 0u ? 0u : variant % 2u != 0u ? 3u : 2u;
-        for (const auto sample : samples) {
-            bool found = false;
+            code[5] = variant == 0u ? 0x7e060280u : 0x7e060283u;
+            code[4] = variant == 0u ? 0x7e04020eu : 0x7e040282u;
+            const auto handle = PrepareShader(request);
+            const auto& artifact = GetPreparedArtifact(*handle);
+            std::vector<std::uint32_t> samples;
+            bool written = false;
             for (std::size_t offset = 5; offset < artifact.spirv.size(); offset += artifact.spirv[offset] >> 16u) {
-                if ((artifact.spirv[offset] & 0xffffu) != spv::OpConstant || artifact.spirv[offset + 2] != sample) continue;
-                Require(artifact.spirv[offset + 3] == expectedSample, "MSAA storage operation addresses the wrong sample");
-                found = true;
+                const auto instruction = artifact.spirv[offset];
+                if ((instruction & 0xffffu) == spv::OpImageWrite) {
+                    Require(variant < 3u, "MSAA atomic shader wrote the image");
+                    written = true;
+                    if (multisampled) {
+                        Require((instruction >> 16u) == 6u && artifact.spirv[offset + 4] == spv::ImageOperandsSampleMask, "MSAA storage write lost its sample operand");
+                        samples.push_back(artifact.spirv[offset + 5]);
+                    } else {
+                        Require((instruction >> 16u) == 4u, "single-sample storage write kept a sample operand");
+                    }
+                }
+                if ((instruction & 0xffffu) == spv::OpImageTexelPointer) {
+                    Require(variant >= 3u && (instruction >> 16u) == 6u, "MSAA atomic lost its sample operand");
+                    samples.push_back(artifact.spirv[offset + 5]);
+                }
             }
-            Require(found, "MSAA sample constant is missing");
+            Require(written || !samples.empty(), "MSAA storage shader has no image writes or atomics");
+            const auto expectedSample = !multisampled || variant == 0u ? 0u : variant % 2u != 0u ? 3u : 2u;
+            for (const auto sample : samples) {
+                bool found = false;
+                for (std::size_t offset = 5; offset < artifact.spirv.size(); offset += artifact.spirv[offset] >> 16u) {
+                    if ((artifact.spirv[offset] & 0xffffu) != spv::OpConstant || artifact.spirv[offset + 2] != sample) continue;
+                    Require(artifact.spirv[offset + 3] == expectedSample, "MSAA storage operation addresses the wrong sample");
+                    found = true;
+                }
+                Require(found, "MSAA sample constant is missing");
+            }
         }
-    }
+    };
     std::vector<std::uint32_t> capabilities(request.target.supportedCapabilities.begin(), request.target.supportedCapabilities.end());
+    if (std::ranges::find(capabilities, spv::CapabilityStorageImageMultisample) != capabilities.end()) check(true);
     std::erase(capabilities, spv::CapabilityStorageImageMultisample);
     request.target.supportedCapabilities = capabilities;
-    ExpectFailure([&] { static_cast<void>(PrepareShader(request)); }, "storage image multisampling is unavailable on the target device");
+    check(false);
 }
 
 void Registration(bool indirect) {

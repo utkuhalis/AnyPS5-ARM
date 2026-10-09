@@ -419,7 +419,9 @@ std::uint32_t QueryDimensions(SpirvValueEmitContext& ctx, const ImageEmitAccess&
     const auto& info = RdnaImageDimensionInfoFor(dimension);
     const auto image = LoadSampledImageDescriptor(state, access.mem.resource, access.slot);
     const auto size = state.module.AllocateId();
-    if (info.multisampled != 0u) {
+    if (info.multisampled != 0u && state.singleSampleImages) {
+        state.module.AddFunction(spv::OpImageQuerySizeLod, ImageViewSizeType(state, dimension), size, image, ConstantU32(state, 0u));
+    } else if (info.multisampled != 0u) {
         state.module.AddFunction(spv::OpImageQuerySize, ImageViewSizeType(state, dimension), size, image);
     } else {
         state.module.AddFunction(spv::OpImageQuerySizeLod, ImageViewSizeType(state, dimension), size, image, AddressU32(ctx, access, 0));
@@ -960,7 +962,8 @@ void EmitReadOp(SpirvValueEmitContext& ctx, const ImageEmitAccess& access) {
             if (addressInfo.multisampled == 0u || access.mem.imageAddressComponents <= addressInfo.coordinateComponents) {
                 ctx.Fail(access.inst, "has no sample index in the image address");
             }
-            state.module.AddFunction(spv::OpImageFetch, ImageVectorType(state, numericClass, 4), color, descriptor, coord, spv::ImageOperandsSampleMask, AddressU32(ctx, access, addressInfo.coordinateComponents));
+            if (state.singleSampleImages) state.module.AddFunction(spv::OpImageFetch, ImageVectorType(state, numericClass, 4), color, descriptor, coord, spv::ImageOperandsLodMask, ConstantU32(state, 0u));
+            else state.module.AddFunction(spv::OpImageFetch, ImageVectorType(state, numericClass, 4), color, descriptor, coord, spv::ImageOperandsSampleMask, AddressU32(ctx, access, addressInfo.coordinateComponents));
         } else {
             state.module.AddFunction(spv::OpImageFetch, ImageVectorType(state, numericClass, 4), color, descriptor, coord, spv::ImageOperandsLodMask, LodU32(ctx, access));
         }
@@ -972,7 +975,7 @@ void EmitReadOp(SpirvValueEmitContext& ctx, const ImageEmitAccess& access) {
 }
 
 std::uint32_t ImageSampleIndex(SpirvValueEmitContext& ctx, const ImageEmitAccess& access) {
-    if (RdnaImageDimensionInfoFor(access.image.dimension).multisampled == 0u) return ConstantU32(ctx.state, 0u);
+    if (RdnaImageDimensionInfoFor(access.image.dimension).multisampled == 0u || ctx.state.singleSampleImages) return ConstantU32(ctx.state, 0u);
     const auto& addressInfo = AddressDimension(access);
     if (addressInfo.multisampled == 0u || access.mem.imageAddressComponents <= addressInfo.coordinateComponents) ctx.Fail(access.inst, "has no sample index in the image address");
     return AddressU32(ctx, access, addressInfo.coordinateComponents);

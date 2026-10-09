@@ -128,7 +128,8 @@ std::uint32_t ImageType(SpirvEmitterState& state, const ImageResource& image) {
         FailEmit("invalid image resource class");
     }
     const auto& info = RdnaImageDimensionInfoFor(image.dimension);
-    if (info.multisampled != 0u) {
+    const auto multisampled = state.singleSampleImages ? 0u : info.multisampled;
+    if (multisampled != 0u) {
         if (sampled == 2u) {
             if (std::ranges::find(state.supportedCapabilities, spv::CapabilityStorageImageMultisample) == state.supportedCapabilities.end()) FailEmit("storage image multisampling is unavailable on the target device");
             state.module.EmitCapability(spv::CapabilityStorageImageMultisample);
@@ -136,7 +137,7 @@ std::uint32_t ImageType(SpirvEmitterState& state, const ImageResource& image) {
         if (info.arrayed != 0u) state.module.EmitCapability(spv::CapabilityImageMSArray);
     }
     const auto scalar = image.atomic64 ? TypeScalarU64(state) : ImageScalarType(state, image.numericClass);
-    return state.module.Type(spv::OpTypeImage, scalar, info.spirvDimension, image.depthCompare ? 1u : 0u, info.arrayed, info.multisampled, sampled, format);
+    return state.module.Type(spv::OpTypeImage, scalar, info.spirvDimension, image.depthCompare ? 1u : 0u, info.arrayed, multisampled, sampled, format);
 }
 
 std::uint32_t ImageViewSizeType(SpirvEmitterState& state, RdnaImageDimension dimension) {
@@ -230,7 +231,8 @@ void EmitStorageImageWrite(SpirvEmitterState& state, std::uint32_t resource, std
     };
     if (RdnaImageDimensionInfoFor(image.dimension).multisampled != 0u) {
         if (sample == 0u || image.mipMode == ImageMipMode::DynamicStorage) FailEmit("multisampled storage image requires a sample and cannot have mip levels");
-        state.module.AddFunction(spv::OpImageWrite, loadAt(arrayIndex), coord, texel, spv::ImageOperandsSampleMask, sample);
+        if (state.singleSampleImages) state.module.AddFunction(spv::OpImageWrite, loadAt(arrayIndex), coord, texel);
+        else state.module.AddFunction(spv::OpImageWrite, loadAt(arrayIndex), coord, texel, spv::ImageOperandsSampleMask, sample);
         return;
     }
     if (image.mipMode != ImageMipMode::DynamicStorage) {

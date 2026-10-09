@@ -256,6 +256,7 @@ std::vector<std::uint32_t> SpirvEmitter::Emit(const IrProgram& program, const Sh
     state.narrowSubgroupClock = target.narrowSubgroupClock;
     state.hostSubgroupSize = target.subgroupSize;
     state.singleLane = (target.subgroupStages & SubgroupStageBit(program.Resources().stage)) == 0u;
+    state.singleSampleImages = std::find(target.supportedCapabilities.begin(), target.supportedCapabilities.end(), static_cast<std::uint32_t>(spv::CapabilityStorageImageMultisample)) == target.supportedCapabilities.end();
     state.splitSubgroup = !state.singleLane && program.WaveSize() == 32u && target.subgroupSize > 32u;
     if (state.singleLane) {
         state.requirements.subgroupBallot = false;
