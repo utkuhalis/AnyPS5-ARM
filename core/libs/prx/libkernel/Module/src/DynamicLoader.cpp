@@ -14,8 +14,8 @@
 #endif
 #include <windows.h>
 #elif defined(__APPLE__)
-#include "prx/libc/include/specifics/linux/ElfTypes.hpp"
 #include <dlfcn.h>
+#include <mach-o/dyld.h>
 #else
 #include <dlfcn.h>
 #include <link.h>
@@ -53,7 +53,11 @@ void* Symbol(Module& module, const char* name) {
     return ::dlsym(module.native, name);
 #endif
 }
-#ifndef _WIN32
+#ifdef __APPLE__
+std::uintptr_t MainProgramBase() {
+    return reinterpret_cast<std::uintptr_t>(_dyld_get_image_header(0));
+}
+#elif !defined(_WIN32)
 std::uintptr_t MainProgramBase() {
     static const std::uintptr_t base = [] {
         struct Scan {
@@ -71,6 +75,8 @@ std::uintptr_t MainProgramBase() {
     }();
     return base;
 }
+#endif
+#ifndef _WIN32
 
 bool FromGuestModule(void* address) {
     Dl_info info{};
