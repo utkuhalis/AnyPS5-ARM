@@ -12,6 +12,7 @@ The bundle runs without the SDK or environment variables:
     Contents/MacOS/launch           enters the game folder (AnyPS5 maps /app0 under the working
                                     directory) and starts eboot
     Contents/MacOS/eboot, libs/     the title, the prx libraries, libvulkan and MoltenVK
+    Contents/MacOS/app0             a link to the game folder, where eboot loads its guest modules
     Contents/Resources/game/app0    the title's files
     Contents/Resources/vulkan/icd.d MoltenVK's driver manifest
 
@@ -85,6 +86,8 @@ def package(relinked, game, libs, vulkan, input_config, bundle):
 
     shutil.copy2(executable, macos / "eboot")
     (macos / "eboot").chmod(0o755)
+    # The relinked executable loads its guest modules from @executable_path/app0/sce_module.
+    (macos / "app0").symlink_to(Path("..") / "Resources" / "game" / "app0")
     libraries = sorted(libs.glob("*.prx"))
     if not libraries:
         raise RuntimeError(f"No prx libraries in {libs}")

@@ -33,6 +33,8 @@
 #include <mach/mach_vm.h>
 #include <string>
 #include <sys/mman.h>
+#include <sys/resource.h>
+#include <sys/sysctl.h>
 #include <unistd.h>
 #else
 #include <windows.h>
@@ -257,6 +259,21 @@ void Trace(const char* format, ...) {
     va_end(args);
 }
 
+#if defined(__APPLE__)
+// Every direct memory block holds a descriptor, and apps opened from Finder start with a soft limit of 256.
+bool RaiseOpenFileLimit() {
+    rlimit limit {};
+    if (::getrlimit(RLIMIT_NOFILE, &limit) != 0) return false;
+    int perProcess = OPEN_MAX;
+    std::size_t length = sizeof(perProcess);
+    ::sysctlbyname("kern.maxfilesperproc", &perProcess, &length, nullptr, 0);
+    const rlim_t ceiling = std::min<rlim_t>(limit.rlim_max, static_cast<rlim_t>(perProcess));
+    if (limit.rlim_cur >= ceiling) return false;
+    limit.rlim_cur = ceiling;
+    return ::setrlimit(RLIMIT_NOFILE, &limit) == 0;
+}
+#endif
+
 class PhysicalBacking {
 public:
     explicit PhysicalBacking(std::size_t bytes, int memoryType) : memoryType(memoryType) {
@@ -275,6 +292,7 @@ public:
         char name[32];
         std::snprintf(name, sizeof(name), "/aps5-dm-%d-%u", static_cast<int>(::getpid()), sequence.fetch_add(1));
         file = ::shm_open(name, O_RDWR | O_CREAT | O_EXCL, 0600);
+        if (file < 0 && errno == EMFILE && RaiseOpenFileLimit()) file = ::shm_open(name, O_RDWR | O_CREAT | O_EXCL, 0600);
         if (file < 0) throw std::system_error(errno, std::generic_category(), "create direct memory backing");
         ::shm_unlink(name);
         ::fcntl(file, F_SETFD, FD_CLOEXEC);
