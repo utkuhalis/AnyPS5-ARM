@@ -660,7 +660,7 @@ std::vector<std::uint8_t> WriteMacOsImage(MacOsImageInput& input) {
         Io::AppendU32(commands, static_cast<std::uint32_t>(72 + 80 * segment.Sections.size()));
         AppendName16(commands, segment.Name);
         for (int field = 0; field < 4; ++field) Io::AppendU64(commands, 0);
-        Io::AppendU32(commands, segment.Protection);
+        Io::AppendU32(commands, segment.Name.starts_with("__ELF") ? VmProtRead | VmProtWrite | VmProtExecute : segment.Protection);
         Io::AppendU32(commands, segment.Protection);
         Io::AppendU32(commands, static_cast<std::uint32_t>(segment.Sections.size()));
         Io::AppendU32(commands, 0);

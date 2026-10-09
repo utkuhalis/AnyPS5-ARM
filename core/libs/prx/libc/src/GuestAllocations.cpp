@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <string>
 #include <thread>
 #include <limits>
@@ -15,6 +16,7 @@
 #endif
 #include <windows.h>
 #elif defined(__APPLE__)
+#include <dlfcn.h>
 #include <mach-o/dyld.h>
 #include <mach-o/loader.h>
 #include <unistd.h>
@@ -195,7 +197,8 @@ void GuestAllocationsRegisterMainImage_nid_postfix(void*) {
         for (std::uint32_t index = 0; index < header->ncmds; ++index) {
             if (command->cmd == LC_SEGMENT_64) {
                 const auto& segment = *reinterpret_cast<const segment_command_64*>(command);
-                if (segment.vmsize != 0 && segment.initprot != VM_PROT_NONE) {
+                const bool guestSegment = std::strncmp(segment.segname, "__ELF", 5) == 0;
+                if (segment.vmsize != 0 && (segment.initprot != VM_PROT_NONE || guestSegment)) {
                     const auto start = (slide + segment.vmaddr) & ~(pageSize - 1);
                     const auto end = (slide + segment.vmaddr + segment.vmsize + pageSize - 1) & ~(pageSize - 1);
                     for (auto page = start; page < end; page += pageSize) {
@@ -398,7 +401,16 @@ std::map<std::uint64_t, std::shared_ptr<const Range>> replaceRange(const void* p
         const auto finish = base + range.bytes;
         if (finish <= address) continue;
         if (base >= end) break;
-        require(base <= cursor, "guest protection or unmap range has a hole");
+        if (base > cursor) {
+            const char* image = "no image";
+#ifdef __APPLE__
+            Dl_info info{};
+            if (::dladdr(reinterpret_cast<const void*>(cursor), &info) != 0 && info.dli_fname != nullptr) image = info.dli_fname;
+#endif
+            char message[512];
+            std::snprintf(message, sizeof(message), "guest protection or unmap range has a hole: range 0x%llx+0x%zx, unregistered 0x%llx-0x%llx in %s", static_cast<unsigned long long>(address), bytes, static_cast<unsigned long long>(cursor), static_cast<unsigned long long>(base), image);
+            throw std::runtime_error(message);
+        }
         replacement.erase(base);
         const auto insert = [&](std::uint64_t first, std::uint64_t last, bool canRead, bool canWrite) {
             if (first < last) replacement.emplace(first, std::make_shared<const Range>(Range{first, static_cast<std::size_t>(last - first), canRead, canWrite, range.allocationAddress, range.allocationBytes, range.releasable}));
