@@ -210,7 +210,8 @@ def main():
     relinker, libraries = sys.argv[1], sys.argv[2]
     if stale := stale_libraries(libraries):
         raise SystemExit(f"patched libraries are older than their build, run `ninja libs`: {', '.join(stale[:5])}")
-    work = pathlib.Path(sys.argv[3]) if len(sys.argv) > 3 else pathlib.Path(tempfile.mkdtemp(prefix="anyps5-macos-"))
+    temporary = len(sys.argv) <= 3
+    work = pathlib.Path(sys.argv[3]) if not temporary else pathlib.Path(tempfile.mkdtemp(prefix="anyps5-macos-"))
     cases = [
         ("argv", lambda d: (d / "eboot.elf").write_bytes(argv_fixture()), -signal.SIGTRAP, ["Z"], False),
         ("import", lambda d: (d / "eboot.elf").write_bytes(import_fixture()), 0, [], False),
@@ -237,7 +238,9 @@ def main():
         print(f"{'PASS' if error is None else 'FAIL'} {name}" + ("" if error is None else f": {error}"))
         failures += error is not None
     if failures:
-        raise SystemExit(f"{failures} macOS fixture(s) failed")
+        raise SystemExit(f"{failures} macOS fixture(s) failed; their files are in {work}")
+    if temporary:
+        shutil.rmtree(work, ignore_errors=True)
 
 
 if __name__ == "__main__":
