@@ -13,6 +13,9 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#elif defined(__APPLE__)
+#include "prx/libc/include/specifics/linux/ElfTypes.hpp"
+#include <dlfcn.h>
 #else
 #include <dlfcn.h>
 #include <link.h>

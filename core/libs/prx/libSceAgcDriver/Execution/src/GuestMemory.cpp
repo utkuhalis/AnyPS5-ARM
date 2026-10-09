@@ -517,7 +517,7 @@ struct PageRun {
     bool writable;
 };
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__APPLE__)
 int ProcMapsQueryFd() {
     static const int fd = [] {
         if (std::getenv("APS5_NO_PROCMAP_QUERY") != nullptr) return -1;
