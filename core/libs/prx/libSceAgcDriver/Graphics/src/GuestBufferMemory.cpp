@@ -294,6 +294,14 @@ void decideImportWatch(const Context& context, HostImports& state) {
     state.unwatchDmaBufImports = false;
     if (context.hostImportAlignment != 0 && GuestMemory::WriteWatched()) std::fprintf(stderr, "[write-watch] host imports are compared on Windows because driver writes can arrive after the import window\n");
 #else
+#ifdef __APPLE__
+    // The probe below imports a range the watch protects, unlike importAllocation, which opens the
+    // range first; imported ranges stay watched.
+    state.watchDevice = context.device;
+    state.unwatchImports = false;
+    state.unwatchDmaBufImports = false;
+    return;
+#endif
     const auto request = importWatchRequest();
     state.watchDevice = context.device;
     state.unwatchImports = false;
@@ -411,6 +419,11 @@ const HostImport* importAllocation(const Context& context, HostImports& state, s
     VkResult result = VK_SUCCESS;
     const char* step = nullptr;
     GuestMemory::ImportWatched(base, bytes, [&] {
+#ifdef __APPLE__
+        // MoltenVK drops GPU stores into a range imported while the write watch protects it
+        // (agc_driver_srgb8_color_target); opened for the import, the range stays watched afterwards.
+        GuestWriteWatch::GuestWriteWatchHostWrite_nid_postfix(reinterpret_cast<const void*>(base), static_cast<std::size_t>(bytes));
+#endif
         step = createImport(context, entry, result);
         return step == nullptr;
     });

@@ -1,4 +1,5 @@
 #include "prx/libc/include/GuestArena.hpp"
+#include "prx/libc/include/GuestWriteWatch.hpp"
 #include "prx/libc/include/WindowsMappings.hpp"
 #include <algorithm>
 #include <atomic>
@@ -275,6 +276,9 @@ bool GuestArenaWriteWatched_nid_postfix() {
 bool GuestArenaBeginHostWrite_nid_postfix(void* pointer, std::size_t bytes) {
 #ifdef _WIN32
     return WindowsMappings::Get().BeginHostWrite(reinterpret_cast<std::uintptr_t>(pointer), bytes);
+#elif defined(__APPLE__)
+    GuestWriteWatch::GuestWriteWatchHostWrite_nid_postfix(pointer, bytes);
+    return true;
 #else
     (void)pointer;
     (void)bytes;

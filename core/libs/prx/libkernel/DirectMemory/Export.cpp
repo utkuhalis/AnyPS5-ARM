@@ -1,3 +1,4 @@
+#include "prx/libc/include/GuestWriteWatch.hpp"
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
@@ -292,7 +293,7 @@ int APS5_VABI sceKernelVirtualQuery(const void* addr, int flags, VirtualQueryInf
  if (mach_vm_region(mach_task_self(), &region, &regionSize, VM_REGION_BASIC_INFO_64, reinterpret_cast<vm_region_info_t>(&host), &count, &object) != KERN_SUCCESS || region > address || (host.protection & VM_PROT_READ) == 0) return SCE_KERNEL_ERROR_EACCES;
  info->start = region;
  info->end = region + regionSize;
- const bool writable = (host.protection & VM_PROT_WRITE) != 0;
+ const bool writable = (host.protection & VM_PROT_WRITE) != 0 || GuestWriteWatch::GuestWriteWatchWritable_nid_postfix(address, 1);
  const bool executable = (host.protection & VM_PROT_EXECUTE) != 0;
  #else
  std::ifstream maps("/proc/self/maps");

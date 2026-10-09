@@ -611,7 +611,8 @@ bool describePages(std::uintptr_t address, std::size_t bytes, Emit&& emit) {
         }
         const auto next = std::min<std::uintptr_t>(end, regionBase + regionSize);
         const bool readable = (info.protection & VM_PROT_READ) != 0;
-        if (!emit(PageRun{cursor, next, readable, readable && (info.protection & VM_PROT_WRITE) != 0})) return true;
+        const bool writable = readable && ((info.protection & VM_PROT_WRITE) != 0 || GuestWriteWatch::GuestWriteWatchWritable_nid_postfix(cursor, next - cursor));
+        if (!emit(PageRun{cursor, next, readable, writable})) return true;
         cursor = next;
 #else
         if (const int fd = ProcMapsQueryFd(); fd >= 0) {

@@ -36,16 +36,14 @@ Measured on an M3 Pro with macOS 26.6, Vulkan SDK 1.4.363.0 and MoltenVK:
 | Full build (all targets and 115 prx libraries) | builds |
 | `macos_fixtures`: argv, imports, TLS, C++ exceptions, C cleanup, threads, modules, TLS across modules, `--to-intel` | 10/10 run under Rosetta |
 | Breakout guest (video out, pad, audio out), relinked and packaged as `.app` | runs at about 60 fps |
-| ctest, full suite on MoltenVK | 471 of 483 pass |
-| Dreaming Sarah (PPSA02929), relinked with `--macos --to-intel` | boots to the animated main menu; about 19 fps measured while dumping every 60th frame |
+| ctest, full suite on MoltenVK | 477 of 484 pass |
+| Dreaming Sarah (PPSA02929), relinked with `--macos --to-intel`, packaged as `.app` and opened from Finder | runs the animated main menu at 60 fps (about 18 fps before the write watch) |
 
-The 12 tests that still fail:
+The 7 tests that still fail:
 
-- **Apple GPU or Metal limits (7):**
+- **Apple GPU or Metal limits (2):**
   - 64-bit buffer atomics: `buffer_unaligned_base`
-  - shaderFloat64: `interpolation_f16`
   - 32 KiB threadgroup memory against the 40 KiB LDS the test uses: `lds_src2`
-  - multisampled storage images: the four `prepared_shaders*` tests
 - **A product that should give `-0.0` gives `+0.0` (4):** `f32_denormal_flush`, `f32_output_modifier`, `packed_alu`, `sdwa_float_selectors`. See [TechnicalDebt](TechnicalDebt.md).
 - **`pixel_interlock`:** SPIRV-Cross writes MSL that Metal rejects for fragment shader interlock.
 
@@ -59,6 +57,8 @@ Changes on top of the merged port:
 - Guest `mprotect` rounds to 16 KiB pages relative to the guest image's load bias. dyld only aligns a slide to 4 KiB, so rounding the absolute address protected the wrong pages (SIGBUS in Dreaming Sarah). Guest segments get maxprot rwx, and the image's no-access padding segments are registered.
 - Without storage MSAA, multisampled image dimensions are emitted single-sample. This matches the single-sample images the driver creates; Dreaming Sarah's first shader clears an MSAA surface with `image_store`.
 - Merged upstream #1653: no fragment barycentric on MoltenVK. SPIRV-Cross cannot write `PerVertexKHR` to MSL.
+- macOS has a guest [write watch](../../core/libs/prx/libc/src/GuestWriteWatch.cpp). Without it the driver compared guest memory before every draw, a third of Dreaming Sarah's frame time; it write-protects watched pages and records the first write to each in a fault handler. See [TechnicalDebt](TechnicalDebt.md) for its costs and limits.
+- Packaged titles start from Finder: `Contents/MacOS/app0` links to the game folder, where the executable loads its guest modules, and the soft open-file limit (256 for apps Finder opens) is raised when direct memory runs out of descriptors.
 - MoltenVK's Metal argument buffers are enabled through `VK_EXT_layer_settings`. Together with upstream #1580 (merged here), they lift the 31 storage buffers per stage limit.
 - Test fixes for macOS:
   - case-insensitive APFS in `guest_path_case`

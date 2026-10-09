@@ -504,7 +504,10 @@ bool RemapFixedIntoRegistered(GuestAllocations::Mutation& mutation, void* addr, 
 }
 
 void Unmap(void* addr, size_t len) {
-#if defined(__linux__) || defined(__APPLE__)
+#if defined(__APPLE__)
+    GuestWriteWatch::GuestWriteWatchUnregister_nid_postfix(addr, len);
+    if (munmap(addr, len) != 0) throw std::system_error(errno, std::generic_category(), "munmap failed");
+#elif defined(__linux__)
     if (munmap(addr, len) != 0) throw std::system_error(errno, std::generic_category(), "munmap failed");
     GuestWriteWatch::GuestWriteWatchUnregister_nid_postfix(addr, len);
 #else
@@ -823,6 +826,9 @@ int DoMprotect(const void* addr, size_t len, int prot) {
 #endif
     mutation.Protect(pointer, bytes, (prot & 3) != 0, (prot & 2) != 0, [&] {
         if (mprotect(const_cast<void*>(pointer), bytes, nativeProtection) != 0) throw std::system_error(errno, std::generic_category(), "mprotect failed");
+#ifdef __APPLE__
+        GuestWriteWatch::GuestWriteWatchReprotect_nid_postfix(pointer, bytes);
+#endif
     });
     RecordProtection(pointer, bytes, prot);
     return 0;
