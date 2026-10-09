@@ -81,8 +81,12 @@ void CheckProfile() {
     invalid([](auto& value) { value.device.pNext = nullptr; }, "bufferDeviceAddress");
     invalid([](auto& value) { value.core.shaderInt64 = VK_FALSE; }, "shaderInt64");
     invalid([](auto& value) { value.bytes.storageBuffer8BitAccess = VK_FALSE; }, "storageBuffer8BitAccess");
-    invalid([](auto& value) { value.robustness.nullDescriptor = VK_FALSE; }, "nullDescriptor");
-    invalid([](auto& value) { value.indexing.pNext = nullptr; }, "nullDescriptor");
+    {
+        ProfileInput padded;
+        padded.robustness.nullDescriptor = VK_FALSE;
+        const AgcDriver::ShaderDeviceProfile withoutNull(padded.Target(), padded.device, padded.limits);
+        Require(!withoutNull.NullDescriptors(), "profile without nullDescriptor reported null descriptor support");
+    }
     invalid([](auto& value) { value.core.fragmentStoresAndAtomics = VK_FALSE; }, "graphics stores and atomics");
     invalid([](auto& value) { value.limits.maxPushConstantsSize = 127u; }, "exceeds device limits");
     invalid([](auto& value) { value.limits.maxBoundDescriptorSets = 0u; }, "exceeds device limits");

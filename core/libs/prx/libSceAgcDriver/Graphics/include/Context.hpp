@@ -24,6 +24,7 @@ class Recorder;
 class DescriptorCache;
 class SamplerCache;
 class ShaderResources;
+class PaddingImages;
 
 inline void Require(bool condition, const std::string& reason) {
     if (!condition) throw std::runtime_error("AGC graphics: " + reason);
@@ -140,6 +141,7 @@ struct Context {
     bool geometryShader = false;
     bool sampleRateShading = false;
     bool nullDescriptors = false;
+    const PaddingImages* paddingImages = nullptr;
     bool primitiveListRestart = false;
     bool imageViewMinLod = false;
     bool pipelineExecutableInfo = false;
