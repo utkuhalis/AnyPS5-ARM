@@ -8,6 +8,20 @@
 
 <p align="center"><sub>Dreaming Sarah (PPSA02929) on a MacBook Pro M3 Pro, macOS 26.6.2. The FPS counter is in the window title.</sub></p>
 
+## Your game, as a Mac app, in four clicks
+
+**AnyPS5.app** does the whole job for you: no Terminal, no build, no Vulkan SDK. Pick your game folder, press **Convert**, then **Play**. The game becomes a normal Mac app that you open from Finder or Launchpad.
+
+<p align="center"><a href="https://github.com/utkuhalis/AnyPS5-ARM/releases/latest/download/AnyPS5-macOS.zip"><b>⬇ Download AnyPS5 for macOS</b></a> · Apple silicon · macOS 14+</p>
+
+| 1. Check this Mac | 2. Choose the game | 3. Convert | 4. Play |
+|---|---|---|---|
+| Checks Apple silicon and Rosetta 2, and installs Rosetta with one click if it is missing. | Drag the game folder onto the window or the Dock icon. Shows the game's icon, name and size, and catches a still-encrypted dump before you start. | Relinks the game and bundles the system libraries and the Metal driver into one app, in seconds. | Opens the game. From then on it starts like any other app. |
+
+![The AnyPS5 app, ready to play](docs/screenshots/converter-done.jpg)
+
+**Türkçe:** **AnyPS5.app** bütün işi senin yerine yapar: Terminal, derleme ya da Vulkan SDK gerekmez. Oyun klasörünü seç, **Dönüştür**'e, sonra **Oyna**'ya bas. Oyun, Finder'dan ya da Launchpad'den açılan normal bir Mac uygulamasına dönüşür. Uygulama Rosetta 2'yi kontrol eder, eksikse tek tıkla kurar. Oyun klasörünü pencereye ya da Dock simgesine sürüklemen yeterli; dump hâlâ şifreliyse başlamadan uyarır. [**⬇ AnyPS5'i indir**](https://github.com/utkuhalis/AnyPS5-ARM/releases/latest/download/AnyPS5-macOS.zip) · Apple silicon · macOS 14+
+
 ---
 
 ## English
