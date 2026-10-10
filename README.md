@@ -39,6 +39,7 @@ AnyPS5-ARM is the macOS port of [AnyPS5](https://github.com/boykopovar/AnyPS5). 
 |---|---|
 | Dreaming Sarah (PPSA02929), menu and gameplay | **60 fps** (about 18 fps before the macOS write watch) |
 | Breakout test title (video, pad, audio) | 60 fps |
+| Stray (PPSA02100), Unreal Engine 4 | **Work in progress:** boots through the studio logo to the brightness setup screen at about **1 fps** |
 | Guest fixtures (TLS, exceptions, threads, modules) | 10 of 10 pass |
 | Test suite on MoltenVK | 477 of 484 pass |
 
@@ -47,6 +48,14 @@ Measured on a MacBook Pro M3 Pro running macOS 26.6.2 with Vulkan SDK 1.4.363.0.
 | Main menu | Opening scene |
 |---|---|
 | ![Main menu at 59.95 fps](docs/screenshots/dreaming-sarah-menu.jpg) | ![Opening scene at 60 fps](docs/screenshots/dreaming-sarah-intro.jpg) |
+
+#### Stray: where it stands
+
+Stray is the first Unreal Engine 4 title to render on macOS here. It reaches the brightness setup screen, at about 1 fps for now. Getting there took fixes on the [`gta3-image-heaps`](https://github.com/utkuhalis/AnyPS5-ARM/tree/gta3-image-heaps) branch: larger shader image and sampler heaps, a SPIR-V loop shape that MoltenVK's shader translator turned into an infinite loop and a GPU hang, depth surfaces read as storage images, and draws the Metal backend cannot run (geometry shaders, the depth bounds test) skipped instead of stopping the game. It still runs with `APS5_NO_WRITE_WATCH=1` and `ANYPS5_NO_SHADER_CACHE=1`, and stops later on a depth texture it cannot sample yet.
+
+| Studio logo | Brightness setup |
+|---|---|
+| ![Stray: the BlueTwelve logo](docs/screenshots/stray-boot-logo.jpg) | ![Stray: the brightness setup screen](docs/screenshots/stray-brightness.jpg) |
 
 ### Quick start: the AnyPS5 app
 
@@ -194,6 +203,7 @@ AnyPS5-ARM, [AnyPS5](https://github.com/boykopovar/AnyPS5)'in macOS sürümüdü
 |---|---|
 | Dreaming Sarah (PPSA02929), menü ve oynanış | **60 FPS** (macOS yazma izleme eklenmeden önce ~18 FPS) |
 | Breakout test oyunu (görüntü, kol, ses) | 60 FPS |
+| Stray (PPSA02100), Unreal Engine 4 | **Üzerinde çalışılıyor:** stüdyo logosundan parlaklık ayar ekranına kadar açılıyor, şimdilik yaklaşık **1 FPS** |
 | Misafir testleri (TLS, istisnalar, thread'ler, modüller) | 10/10 geçiyor |
 | MoltenVK üzerinde test paketi | 484 testin 477'si geçiyor |
 
@@ -202,6 +212,14 @@ AnyPS5-ARM, [AnyPS5](https://github.com/boykopovar/AnyPS5)'in macOS sürümüdü
 | Ana menü | Açılış sahnesi |
 |---|---|
 | ![Ana menü, 59.95 FPS](docs/screenshots/dreaming-sarah-menu.jpg) | ![Açılış sahnesi, 60 FPS](docs/screenshots/dreaming-sarah-intro.jpg) |
+
+#### Stray: ne durumda
+
+Stray, burada macOS'ta görüntü veren ilk Unreal Engine 4 oyunu. Parlaklık ayar ekranına kadar geliyor, şimdilik yaklaşık 1 FPS ile. Bunun için [`gta3-image-heaps`](https://github.com/utkuhalis/AnyPS5-ARM/tree/gta3-image-heaps) dalında düzeltmeler yapıldı: daha büyük shader image ve sampler heap'leri, MoltenVK'nın shader çeviricisinin sonsuz döngüye ve GPU kilitlenmesine çevirdiği bir SPIR-V döngü biçimi, storage image olarak okunan depth yüzeyleri, ve Metal'in çalıştıramadığı çizimlerin (geometry shader'lar, depth bounds testi) oyunu durdurmak yerine atlanması. Hâlâ `APS5_NO_WRITE_WATCH=1` ve `ANYPS5_NO_SHADER_CACHE=1` ile çalışıyor ve daha ileride henüz örnekleyemediği bir depth texture'da duruyor.
+
+| Stüdyo logosu | Parlaklık ayarı |
+|---|---|
+| ![Stray: BlueTwelve logosu](docs/screenshots/stray-boot-logo.jpg) | ![Stray: parlaklık ayar ekranı](docs/screenshots/stray-brightness.jpg) |
 
 ### Hızlı başlangıç: AnyPS5 uygulaması
 
