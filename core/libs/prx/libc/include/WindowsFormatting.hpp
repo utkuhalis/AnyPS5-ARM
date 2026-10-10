@@ -198,9 +198,14 @@ inline int FormatWindows(char* buffer, size_t size, const char* format, const vo
             output.Value(spec + "ll" + conversion, value);
         } else if (std::strchr("aAeEfFgG", conversion)) {
             if (length == "L") {
+#if defined(__x86_64__)
                 static_assert(sizeof(long double) == 16);
                 static_assert(std::numeric_limits<long double>::digits == 64);
                 output.Value(spec + "L" + conversion, args.Next<long double>());
+#else
+                // TODO(native-arm64): read the guest's 80-bit x87 value.
+                throw std::invalid_argument("long double formatting is not ported to arm64");
+#endif
             } else {
                 if (!length.empty() && length != "l") throw std::invalid_argument("Invalid floating length");
                 output.Value(spec + conversion, args.Next<double>());

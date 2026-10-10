@@ -4,6 +4,7 @@
 // setjmp/longjmp must capture the guest's own frame, so they are written directly in assembly with
 // the guest (System V) calling convention. The saved state fits the guest's 96-byte jmp_buf:
 // return address, rbx, rsp, rbp, r12-r15, MXCSR and the x87 control word.
+#if defined(__x86_64__)
 asm(".text\n"
     APS5_ASM_FUNCTION("setjmp_nid_postfix")
     "    mov (%rsp), %rax\n"
@@ -36,3 +37,4 @@ asm(".text\n"
     "    ldmxcsr 64(%rdi)\n"
     "    fldcw 68(%rdi)\n"
     "    jmp *0(%rdi)\n");
+#endif

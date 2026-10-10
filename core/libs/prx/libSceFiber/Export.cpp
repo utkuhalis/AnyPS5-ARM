@@ -11,7 +11,9 @@
 #include <thread>
 #include <stdexcept>
 #include <string>
+#if defined(__x86_64__)
 #include <xmmintrin.h>
+#endif
 
 #ifdef _WIN32
 #include <windows.h>
@@ -196,7 +198,7 @@ static void UnpinStack(const void* context, std::uint64_t bytes) {
     GuestArena::GuestArenaUnpinWritable_nid_postfix(context, static_cast<std::size_t>(bytes));
 }
 
-#else
+#elif defined(__x86_64__)
 
 extern "C" void Aps5FiberSwitchStack_nid_no_patch(void** save, void* load);
 extern "C" void Aps5FiberTrampoline_nid_no_patch();
@@ -251,6 +253,27 @@ static void PinStack(const void*, std::uint64_t) {}
 
 static void UnpinStack(const void*, std::uint64_t) {}
 
+#else
+
+// TODO(native-arm64): a fiber switch must move both the native stack and the translated guest's rsp.
+struct InitialFrame {
+    std::uint64_t returnAddress;
+};
+
+extern "C" void Aps5FiberSwitchStack_nid_no_patch(void**, void*) {
+    NotImplemented_nid_no_patch(__func__);
+}
+
+static StackBounds CurrentBounds() {
+    return {};
+}
+
+static void SetBounds(const StackBounds&) {}
+
+static void PinStack(const void*, std::uint64_t) {}
+
+static void UnpinStack(const void*, std::uint64_t) {}
+
 #endif
 
 static StackBounds FiberBounds(const Fiber* fiber) {
@@ -269,6 +292,10 @@ extern "C" [[noreturn]] void Aps5FiberMain_nid_no_patch(Fiber* fiber) {
 }
 
 static void PrepareInitialStack(Fiber* fiber) {
+#if !defined(_WIN32) && !defined(__x86_64__)
+    static_cast<void>(fiber);
+    NotImplemented_nid_no_patch(__func__);
+#else
     const auto top = reinterpret_cast<std::uintptr_t>(fiber->context + fiber->contextSize) & ~static_cast<std::uintptr_t>(15);
     auto* frame = reinterpret_cast<InitialFrame*>(top - 256);
     std::memset(frame, 0, sizeof(*frame));
@@ -279,6 +306,7 @@ static void PrepareInitialStack(Fiber* fiber) {
     frame->r12 = reinterpret_cast<std::uint64_t>(fiber);
     frame->returnAddress = reinterpret_cast<std::uint64_t>(&Aps5FiberTrampoline_nid_no_patch);
     fiber->savedStack = frame;
+#endif
 }
 
 static bool AcquireForResume(Fiber* target) {

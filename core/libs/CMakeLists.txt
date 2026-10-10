@@ -77,13 +77,24 @@ set_target_properties(libc PROPERTIES
         INSTALL_RPATH "$ORIGIN"
 )
 
+# The arm64 linker signs every image, and the patcher cannot grow the export trie of a signed one.
+if(APPLE AND CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
+    set(NID_UNSIGN codesign --remove-signature)
+    set(NID_SIGN codesign --force --sign -)
+else()
+    set(NID_UNSIGN ${CMAKE_COMMAND} -E true)
+    set(NID_SIGN ${CMAKE_COMMAND} -E true)
+endif()
+
 set(LIBC_UNPATCHED ${UNPATCHED_DIR}/libc.prx)
 set(LIBC_PATCHED ${PATCHED_DIR}/libc.prx)
 
 add_custom_command(
         OUTPUT ${LIBC_PATCHED}
         COMMAND ${CMAKE_COMMAND} -E copy ${LIBC_UNPATCHED} ${LIBC_PATCHED}
+        COMMAND ${NID_UNSIGN} ${LIBC_PATCHED}
         COMMAND $<TARGET_FILE:nid_patcher> libc ${LIBC_PATCHED}
+        COMMAND ${NID_SIGN} ${LIBC_PATCHED}
         DEPENDS nid_patcher libc ${LIBC_UNPATCHED}
         COMMENT "Patching NIDs for libc"
 )
@@ -136,7 +147,9 @@ foreach(LIB_DIR ${LIBS_DIRS})
         add_custom_command(
                 OUTPUT ${PATCHED_FILE}
                 COMMAND ${CMAKE_COMMAND} -E copy ${UNPATCHED_FILE} ${PATCHED_FILE}
+                COMMAND ${NID_UNSIGN} ${PATCHED_FILE}
                 COMMAND $<TARGET_FILE:nid_patcher> ${LIB_NAME} --preserve-exports "${LIBC_UNPATCHED}" "${PATCHED_FILE}"
+                COMMAND ${NID_SIGN} ${PATCHED_FILE}
                 DEPENDS nid_patcher ${LIB_NAME} ${UNPATCHED_FILE} ${LIBC_UNPATCHED}
                 COMMENT "Patching NIDs for ${LIB_NAME}"
         )

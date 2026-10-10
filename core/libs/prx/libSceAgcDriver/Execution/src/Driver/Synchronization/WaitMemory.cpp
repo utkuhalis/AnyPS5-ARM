@@ -10,7 +10,9 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+#if defined(__x86_64__)
 #include <immintrin.h>
+#endif
 
 namespace AgcDriver::DriverDetail {
 
@@ -271,7 +273,11 @@ void Driver::waitMemory(std::span<const std::uint32_t> packet, std::uint32_t que
         if (storedSince(packet, awaited, awaitedBytes, received)) return;
         ++polls;
         if (spinning) {
+#if defined(__x86_64__)
             _mm_pause();
+#else
+            __builtin_arm_yield();
+#endif
             if ((polls & 63u) != 0) continue;
             if (std::chrono::steady_clock::now() - spinStart > spinLimit) spinning = false;
         } else if (pauseSpin || polls >= 4000) {
