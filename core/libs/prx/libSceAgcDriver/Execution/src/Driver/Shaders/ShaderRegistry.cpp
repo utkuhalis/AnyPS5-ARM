@@ -708,7 +708,15 @@ void Driver::RegisterShader(const Shader* shader) {
     registered.shader = snapshot.registeredState->shader;
     registered.context = snapshot.registeredState->context;
     registered.userConfig = snapshot.registeredState->userConfig;
-    snapshot.prepared->entries = PrepareRegistered(snapshot, *localDevice, registered, true);
+    // Preparing at registration only saves work at the first draw. A shader the host cannot translate
+    // (an unsupported device feature, for one) must not fail the guest's shader creation; it fails, or
+    // is skipped, when it is used.
+    try {
+        snapshot.prepared->entries = PrepareRegistered(snapshot, *localDevice, registered, true);
+    } catch (const std::exception& error) {
+        std::fprintf(stderr, "[shader] 0x%llx type %u not prepared at registration: %s\n", static_cast<unsigned long long>(snapshot.codeAddress), static_cast<unsigned>(snapshot.type), error.what());
+        snapshot.prepared->entries.clear();
+    }
     if ((snapshot.type == 0 || snapshot.type == 1) && !snapshot.prepared->entries.empty()) {
         std::vector<std::uint64_t> key;
         BuildRegisteredAbiKey(registered, *localDevice, key);
