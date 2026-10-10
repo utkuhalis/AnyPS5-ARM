@@ -606,7 +606,7 @@ std::vector<ImageResource> ResourceMaterializer::RuntimeImageModes(const ImageRe
         mode.depthBits = depth;
         mode.depthUnorm16 = unorm16;
         mode.cube = false;
-        mode.mipCount = mode.mipMode == ImageMipMode::DynamicStorage ? RuntimeAbi::StorageHeapCapacity : 1u;
+        mode.mipCount = mode.mipMode == ImageMipMode::DynamicStorage ? RuntimeAbi::DynamicStorageMipCapacity : 1u;
         mode.shaderSwizzle = ShaderImageIdentitySwizzle;
         if (conversion == IrBufferFormat::Format11_11_10UNorm || conversion == IrBufferFormat::Format10_11_11Float) mode.shaderSwizzle = 0x2acu;
         modes.push_back(mode);
@@ -713,7 +713,7 @@ std::uint32_t ResourceMaterializer::RuntimeImageMode(const ImageResource& image,
             if (!exact) throw std::runtime_error(storage ? "runtime packed image bits are not reproducible through the view" : "runtime packed image bits are not recoverable from the view");
         }
     }
-    if (decoded.mipCount > (image.mipMode == ImageMipMode::DynamicStorage ? RuntimeAbi::StorageHeapCapacity : 1u)) throw std::runtime_error("runtime storage image mip capacity exceeded");
+    if (decoded.mipCount > (image.mipMode == ImageMipMode::DynamicStorage ? RuntimeAbi::DynamicStorageMipCapacity : 1u)) throw std::runtime_error("runtime storage image mip capacity exceeded");
     for (std::uint32_t index = 0u; index < modes.size(); ++index) {
         const auto& mode = modes[index];
         if (((mode.emulatedCompare & EmulatedCompare::Enabled) != 0u) != emulated) continue;
@@ -757,7 +757,7 @@ void ResourceMaterializer::ApplyStaticInterface(IrProgram& program, bool nativeS
         image.srgbDecodeFormats = resources.srgbDecodeFormats;
         if (image.indirectRoot != ImageResource::NoIndirectImage) throw std::runtime_error("static image interface was already expanded");
         image.numericClass = image.atomic ? IrTextureNumericClass::Uint : IrTextureNumericClass::Float;
-        image.mipCount = image.mipMode == ImageMipMode::DynamicStorage ? RuntimeAbi::StorageHeapCapacity : 1u;
+        image.mipCount = image.mipMode == ImageMipMode::DynamicStorage ? RuntimeAbi::DynamicStorageMipCapacity : 1u;
         if (resources.descriptorSources.at(image.source).indirectImage.has_value()) {
             if (images.size() + slots - 1u > ShaderInfo::MaxImages) throw std::runtime_error("static bindless image capacity exceeded");
             image.indirectRoot = index;

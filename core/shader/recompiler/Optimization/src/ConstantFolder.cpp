@@ -5,6 +5,8 @@
 #include <array>
 #include <bit>
 #include <cstdint>
+#include <functional>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -214,29 +216,79 @@ bool lowerPackedAncillary(IrProgram& program, IrBuilder& builder, IrValue& ancil
         return *fields[index];
     };
     constexpr std::array<std::pair<std::uint32_t, std::uint32_t>, 2> ranges {{{8u, 4u}, {16u, 13u}}};
-    bool lowered = false;
-    for (const IrUse& use : uses) {
-        IrValue& user = *use.user;
-        if ((user.Opcode() != IrOpcode::BitFieldUExtract && user.Opcode() != IrOpcode::BitFieldSExtract) || use.operand != 0u) {
-            continue;
+    // The field a constant bit-field extract reads, or ranges.size() when it reads neither.
+    const auto extracted = [&](const IrValue& user) -> std::optional<std::size_t> {
+        if (user.Opcode() != IrOpcode::BitFieldUExtract && user.Opcode() != IrOpcode::BitFieldSExtract) {
+            return std::nullopt;
         }
         auto& offset = resolveArg(user, 1);
         auto& count = resolveArg(user, 2);
         if (!isImmediate(offset, IrType::U32) || !isImmediate(count, IrType::U32) || count.ImmediateU32() == 0u) {
-            continue;
+            return std::nullopt;
         }
         const auto range = std::ranges::find_if(ranges, [&](const auto& candidate) {
             return offset.ImmediateU32() >= candidate.first && count.ImmediateU32() <= candidate.second &&
                    offset.ImmediateU32() - candidate.first <= candidate.second - count.ImmediateU32();
         });
-        if (range == ranges.end()) {
+        return static_cast<std::size_t>(range - ranges.begin());
+    };
+    bool lowered = false;
+    std::vector<IrUse> remaining;
+    for (const IrUse& use : uses) {
+        IrValue& user = *use.user;
+        const auto index = use.operand == 0u ? extracted(user) : std::nullopt;
+        if (!index || *index == ranges.size()) {
+            remaining.push_back(use);
             continue;
         }
-        user.ReplaceArgument(0, &field(static_cast<std::size_t>(range - ranges.begin())));
-        user.ReplaceArgument(1, &builder.Constant(offset.ImmediateU32() - range->first));
+        auto& offset = resolveArg(user, 1);
+        user.ReplaceArgument(0, &field(*index));
+        user.ReplaceArgument(1, &builder.Constant(offset.ImmediateU32() - ranges[*index].first));
         lowered = true;
     }
-    return lowered;
+    if (remaining.empty()) {
+        return lowered;
+    }
+    // The packed value is used whole: through a select (v_cndmask) or phi, often because the shader
+    // reuses the register, or by an extract of other bits. Rebuild it from its known fields; the other
+    // bits read as zero. When every use ends in an extract of a known field, only those fields are
+    // read, so an unread sample ID does not turn on per-sample shading.
+    std::array<bool, 2> demanded {};
+    std::vector<const IrValue*> visited;
+    const std::function<void(const IrValue&, std::size_t)> demand = [&](const IrValue& user, std::size_t operand) {
+        if (std::ranges::find(visited, &user) != visited.end()) {
+            return;
+        }
+        const auto index = operand == 0u ? extracted(user) : std::nullopt;
+        if (index) {
+            if (*index < ranges.size()) demanded[*index] = true;
+            else demanded = {true, true};
+            return;
+        }
+        const bool forwards = user.Opcode() == IrOpcode::Identity || user.Opcode() == IrOpcode::Phi || (user.Opcode() == IrOpcode::SelectU32 && operand != 0u);
+        if (!forwards) {
+            demanded = {true, true};
+            return;
+        }
+        visited.push_back(&user);
+        for (const IrUse& next : user.OperandUses()) demand(*next.user, next.operand);
+    };
+    for (const IrUse& use : remaining) demand(*use.user, use.operand);
+    IrValue* packed = &builder.Constant(0u);
+    const auto insert = [&](IrOpcode opcode, IrValue& lhs, IrValue& rhs) -> IrValue& {
+        IrValue& created = program.CreateValue(opcode, IrType::U32);
+        created.AddArgument(&lhs);
+        created.AddArgument(&rhs);
+        ancillary.Parent()->InsertInstructionBefore(&ancillary, &created);
+        return created;
+    };
+    for (std::size_t index = 0; index < ranges.size(); index++) {
+        if (demanded[index]) {
+            packed = &insert(IrOpcode::BitwiseOr32, *packed, insert(IrOpcode::ShiftLeftLogical32, field(index), builder.Constant(ranges[index].first)));
+        }
+    }
+    for (const IrUse& use : remaining) use.user->ReplaceArgument(use.operand, packed);
+    return true;
 }
 
 } // namespace
