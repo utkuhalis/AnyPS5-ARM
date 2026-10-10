@@ -12,11 +12,144 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
+#include <vector>
 #include <SpirvBackend/SpirvEmitterInstructions.hpp>
 
 namespace ShaderRecompiler {
 
 namespace {
+
+bool IsBlockTerminator(spv::Op op) {
+    switch (op) {
+    case spv::OpBranch: case spv::OpBranchConditional: case spv::OpSwitch: case spv::OpReturn: case spv::OpReturnValue:
+    case spv::OpKill: case spv::OpUnreachable: case spv::OpTerminateInvocation:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// A loop whose continue target is entered only from the loop's exit test (the header, or a block whose
+// other target is the loop merge) keeps the whole body in the continue construct. SPIRV-Cross
+// (MoltenVK's MSL path) turns such a loop into a for statement whose increment expression assigns the
+// body's values but drops the header phi copies, so the loop variable never advances and the GPU
+// hangs (Stray's histogram reduction). Such a loop gets an empty continue block instead: the back
+// edges branch to it, it branches to the header, and the header phis name it as their predecessor;
+// the old target becomes an ordinary body block.
+std::vector<std::uint32_t> SplitContinueBodies(std::vector<std::uint32_t> words) {
+    if (words.size() < 5) return words;
+    struct Block {
+        std::size_t label = 0;
+        std::size_t terminator = 0;
+    };
+    std::unordered_map<std::uint32_t, Block> blocks;
+    std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> predecessors;
+    struct Loop {
+        std::uint32_t header;
+        std::uint32_t merge;
+        std::uint32_t target;
+        std::size_t instruction;
+    };
+    std::vector<Loop> loops;
+    std::uint32_t current = 0;
+    for (std::size_t cursor = 5; cursor < words.size();) {
+        const auto count = words[cursor] >> 16u;
+        const auto op = static_cast<spv::Op>(words[cursor] & 0xffffu);
+        if (count == 0 || cursor + count > words.size()) return words;
+        if (op == spv::OpLabel) {
+            current = words[cursor + 1];
+            blocks[current].label = cursor;
+        } else if (op == spv::OpLoopMerge && current != 0) {
+            loops.push_back({current, words[cursor + 1], words[cursor + 2], cursor});
+        } else if (IsBlockTerminator(op) && current != 0) {
+            blocks[current].terminator = cursor;
+            if (op == spv::OpBranch) predecessors[words[cursor + 1]].push_back(current);
+            if (op == spv::OpBranchConditional) {
+                predecessors[words[cursor + 2]].push_back(current);
+                if (words[cursor + 3] != words[cursor + 2]) predecessors[words[cursor + 3]].push_back(current);
+            }
+            if (op == spv::OpSwitch) {
+                // The default target, then (literal, label) pairs of 32-bit selectors.
+                for (std::size_t operand = 2; operand < count; operand += 2) predecessors[words[cursor + operand]].push_back(current);
+            }
+            current = 0;
+        }
+        cursor += count;
+    }
+    struct Added {
+        std::uint32_t id;
+        std::uint32_t header;
+    };
+    // Keyed by the terminator of the block the added continue block follows.
+    std::unordered_map<std::size_t, Added> inserts;
+    auto bound = words[3];
+    for (const auto& loop : loops) {
+        const auto& header = blocks[loop.header];
+        const auto entries = predecessors.find(loop.target);
+        if (loop.target == loop.header || entries == predecessors.end() || header.terminator == 0) continue;
+        const bool exitTestOnly = std::ranges::all_of(entries->second, [&](std::uint32_t from) {
+            if (from == loop.header) return true;
+            const auto terminator = blocks[from].terminator;
+            return static_cast<spv::Op>(words[terminator] & 0xffffu) == spv::OpBranchConditional && (words[terminator + 2] == loop.merge || words[terminator + 3] == loop.merge);
+        });
+        if (!exitTestOnly) continue;
+        // Back edges come from blocks laid out after the header (structured order).
+        std::vector<std::uint32_t> backEdges;
+        for (const auto from : predecessors[loop.header]) {
+            if (blocks[from].label > header.label && blocks[from].terminator != 0) backEdges.push_back(from);
+        }
+        if (backEdges.empty()) continue;
+        const auto added = bound++;
+        words[loop.instruction + 2] = added;
+        std::size_t last = 0;
+        for (const auto from : backEdges) {
+            const auto terminator = blocks[from].terminator;
+            const auto count = words[terminator] >> 16u;
+            for (std::size_t operand = 1; operand < count; ++operand) {
+                const auto op = static_cast<spv::Op>(words[terminator] & 0xffffu);
+                const bool label = op == spv::OpBranch || (op == spv::OpBranchConditional && operand >= 2 && operand <= 3) || (op == spv::OpSwitch && operand % 2 == 0);
+                if (label && words[terminator + operand] == loop.header) words[terminator + operand] = added;
+            }
+            last = std::max(last, terminator);
+        }
+        // The header phis now take the back-edge values from the added block.
+        for (std::size_t cursor = header.label; cursor < header.terminator;) {
+            const auto count = words[cursor] >> 16u;
+            if (static_cast<spv::Op>(words[cursor] & 0xffffu) == spv::OpPhi) {
+                // (value, parent) pairs follow the result type and id; several back edges merge into one.
+                std::vector<std::uint32_t> kept(words.begin() + static_cast<std::ptrdiff_t>(cursor), words.begin() + static_cast<std::ptrdiff_t>(cursor + 3));
+                bool merged = false;
+                for (std::size_t operand = 3; operand + 1 < count; operand += 2) {
+                    const bool back = std::ranges::find(backEdges, words[cursor + operand + 1]) != backEdges.end();
+                    if (back && backEdges.size() > 1) return words;
+                    if (back && merged) continue;
+                    kept.push_back(words[cursor + operand]);
+                    kept.push_back(back ? added : words[cursor + operand + 1]);
+                    merged |= back;
+                }
+                std::copy(kept.begin(), kept.end(), words.begin() + static_cast<std::ptrdiff_t>(cursor));
+            }
+            cursor += count;
+        }
+        inserts.emplace(last, Added{added, loop.header});
+    }
+    if (inserts.empty()) return words;
+    words[3] = bound;
+    std::vector<std::uint32_t> result;
+    result.reserve(words.size() + inserts.size() * 4);
+    result.insert(result.end(), words.begin(), words.begin() + 5);
+    for (std::size_t cursor = 5; cursor < words.size();) {
+        const auto count = words[cursor] >> 16u;
+        result.insert(result.end(), words.begin() + static_cast<std::ptrdiff_t>(cursor), words.begin() + static_cast<std::ptrdiff_t>(cursor + count));
+        if (const auto insert = inserts.find(cursor); insert != inserts.end()) {
+            result.insert(result.end(), {(2u << 16u) | spv::OpLabel, insert->second.id, (2u << 16u) | spv::OpBranch, insert->second.header});
+        }
+        cursor += count;
+    }
+    return result;
+}
+
 
 std::uint32_t SubgroupStageBit(IrShaderStage stage) {
     switch (stage) {
@@ -282,7 +415,7 @@ std::vector<std::uint32_t> SpirvEmitter::Emit(const IrProgram& program, const Sh
     EmitModuleHeader(state, bindings);
     EmitProgram(state);
     state.module.EmitEntryPoint(ExecutionModelForStage(state.program.Resources().stage), state.mainFunc, "main", state.interfaceVariables);
-    return state.module.Finalize();
+    return SplitContinueBodies(state.module.Finalize());
 }
 
 }
