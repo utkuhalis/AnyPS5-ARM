@@ -59,6 +59,18 @@ The relinker already decodes guest code (TLS scan, `--to-intel`). In the arm64 m
 3. **Coverage:** every instruction the titles use must be lifted exactly. Each one gets differential tests against the same code running under Rosetta.
 4. **Tooling at conversion time:** the converter would need LLVM and a linker, about 100 MB. A direct arm64 emitter is the alternative if that size is a problem.
 
+## Building and running the translator
+
+The translator builds on its own because it needs LLVM and Capstone (Homebrew `llvm` and `capstone`):
+
+```sh
+cmake -S tools/translator -B build-translator -G Ninja -DLLVM_DIR=$(brew --prefix llvm)/lib/cmake/llvm
+ninja -C build-translator
+python3 tools/translator/tests/run_native_fixtures.py build-translator build-arm64/core/libs/libs
+```
+
+`aps5-translator <eboot.elf> <guest.o>` writes one arm64 object with the lifted functions, the guest image and the function table. The image's relocated slots are symbolic, so the host linker binds the guest's imports to the NID exports of the arm64 prx libraries. Linking it with `libaps5-translator-runtime.a` and the needed `.prx` files gives a native executable.
+
 ## Milestones
 
 1. The prx libraries build for arm64. The x86-only parts throw until they are ported.
