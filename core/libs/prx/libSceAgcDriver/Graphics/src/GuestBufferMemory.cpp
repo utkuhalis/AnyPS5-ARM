@@ -2037,8 +2037,11 @@ void GuestBufferMemory::UploadPrepare(bool addressable) {
         const bool stale = importsStale(context, state);
         for (auto& region : regions) {
             if (region.mirror != nullptr) continue;
-            // An import found when the lease was acquired is reused while none was dropped since.
-            const HostImport* entry = region.direct != nullptr && state.epoch == importsEpoch ? region.direct : nullptr;
+            // An import found when the lease was acquired is reused while none was dropped since and it
+            // still covers the region (a region can outgrow the range it was imported for).
+            const auto* previous = region.direct;
+            const bool covers = previous != nullptr && region.begin >= previous->base && region.end <= previous->base + previous->bytes;
+            const HostImport* entry = covers && state.epoch == importsEpoch ? previous : nullptr;
             region.direct = nullptr;
             if (stale) {
                 region.pending = true;
@@ -2505,7 +2508,12 @@ VkDescriptorBufferInfo GuestBufferMemory::Descriptor(std::uint64_t address, std:
     const auto* found = owner(address);
     Require(found != nullptr, "guest buffer has no GPU owner");
     const auto& region = *found;
-    Require(address >= region.begin && address + bytes <= region.end && (region.buffer != nullptr || region.direct != nullptr || region.mirror != nullptr), "guest buffer view exceeds its GPU owner");
+    const auto describe = [&](const char* what) {
+        char text[256];
+        std::snprintf(text, sizeof(text), "%s: view 0x%llx+0x%llx, owner 0x%llx-0x%llx", what, static_cast<unsigned long long>(address), static_cast<unsigned long long>(bytes), static_cast<unsigned long long>(region.begin), static_cast<unsigned long long>(region.end));
+        return std::string(text);
+    };
+    if (!(address >= region.begin && address + bytes <= region.end && (region.buffer != nullptr || region.direct != nullptr || region.mirror != nullptr))) throw std::runtime_error("AGC graphics: " + describe("guest buffer view exceeds its GPU owner"));
     const auto base = region.direct != nullptr ? region.direct->base : region.mirror != nullptr ? region.mirror->base : region.begin;
     const auto offset = address - base;
     Require(context.limits.minStorageBufferOffsetAlignment != 0, "no storage buffer offset alignment");
@@ -2513,7 +2521,7 @@ VkDescriptorBufferInfo GuestBufferMemory::Descriptor(std::uint64_t address, std:
     adjustment = static_cast<std::uint32_t>(offset % std::max<VkDeviceSize>(context.limits.minStorageBufferOffsetAlignment, 4));
     const auto range = ViewBytes(bytes, adjustment);
     const auto end = region.direct != nullptr ? region.direct->base + region.direct->bytes : region.end;
-    Require(address - adjustment + range <= end, "guest buffer view exceeds its GPU owner");
+    if (address - adjustment + range > end) throw std::runtime_error("AGC graphics: " + describe("aligned guest buffer view exceeds its GPU owner") + " adjustment " + std::to_string(adjustment) + " range " + std::to_string(range) + " end 0x" + [&] { char t[24]; std::snprintf(t, sizeof(t), "%llx", static_cast<unsigned long long>(end)); return std::string(t); }());
     Require(range <= context.limits.maxStorageBufferRange, "guest buffer view exceeds descriptor range limit");
     const auto handle = region.direct != nullptr ? region.direct->buffer : region.mirror != nullptr ? region.mirror->buffer->Handle() : region.buffer->Handle();
     return {handle, offset - adjustment, range};
