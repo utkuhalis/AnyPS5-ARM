@@ -41,10 +41,14 @@ std::uint32_t read(const Registers& registers, std::uint32_t offset, RegisterBan
 template <typename T> T _readHeaderPod(std::span<const std::byte> header, std::uint64_t headerAddress, const void* pointer) {
     if (pointer == nullptr) throw std::runtime_error("AGC graphics: null AGC header pointer");
     const auto address = reinterpret_cast<std::uint64_t>(pointer);
-    if (address < headerAddress) throw std::runtime_error("AGC graphics: AGC header pointer precedes the shader header");
-    const auto offset = address - headerAddress;
-    if (offset + sizeof(T) > header.size()) throw std::runtime_error("AGC graphics: AGC header pointer is outside the registered shader header");
     T value;
+    // A header the title copied can keep pointing at the tables of the original one, in guest memory.
+    if (address < headerAddress || address - headerAddress + sizeof(T) > header.size()) {
+        AgcDriver::GuestMemory::CheckRange(pointer, sizeof(T), 1);
+        std::memcpy(&value, pointer, sizeof(T));
+        return value;
+    }
+    const auto offset = address - headerAddress;
     std::memcpy(&value, header.data() + offset, sizeof(T));
     return value;
 }
@@ -53,10 +57,13 @@ template <typename T> void _readHeaderArray(std::span<const std::byte> header, s
     if (count == 0) return;
     if (pointer == nullptr) throw std::runtime_error("AGC graphics: null AGC header array pointer");
     const auto address = reinterpret_cast<std::uint64_t>(pointer);
-    if (address < headerAddress) throw std::runtime_error("AGC graphics: AGC header array pointer precedes the shader header");
-    const auto offset = address - headerAddress;
     const auto bytes = static_cast<std::uint64_t>(count) * sizeof(T);
-    if (offset + bytes > header.size()) throw std::runtime_error("AGC graphics: AGC header array is outside the registered shader header");
+    if (address < headerAddress || address - headerAddress + bytes > header.size()) {
+        AgcDriver::GuestMemory::CheckRange(pointer, static_cast<std::size_t>(bytes), 1);
+        std::memcpy(destination, pointer, static_cast<std::size_t>(bytes));
+        return;
+    }
+    const auto offset = address - headerAddress;
     std::memcpy(destination, header.data() + offset, bytes);
 }
 
@@ -166,7 +173,8 @@ ShaderRecompiler::ShaderVertexStageInfo DecodeVertexStageInfo(std::span<const st
     Shader shader;
     std::memcpy(&shader, header.data(), sizeof(Shader));
     ShaderRecompiler::ShaderVertexStageInfo info{};
-    if (shader.user_data == nullptr) throw std::runtime_error("AGC graphics: missing AGC user-data header");
+    // Without a user-data header the shader binds no direct resources, so it fetches no vertices.
+    if (shader.user_data == nullptr) return info;
     const auto userDataHeader = _readHeaderPod<ShaderUserData>(header, headerAddress, shader.user_data);
     if (userDataHeader.direct_resource_count > ShaderRegs::AGC_DIRECT_RESOURCE_TYPE_COUNT) throw std::runtime_error("AGC graphics: AGC direct-resource count exceeds the known resource domain");
     std::array<std::uint16_t, ShaderRegs::AGC_DIRECT_RESOURCE_TYPE_COUNT> directOffsets{};

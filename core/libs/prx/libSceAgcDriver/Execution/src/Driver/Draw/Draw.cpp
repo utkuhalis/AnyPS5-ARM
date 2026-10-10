@@ -234,7 +234,14 @@ DrawVerdict Driver::draw(QueueState& queue, std::span<const std::uint32_t> packe
     const auto buildRectList = [&] {
         phaseTiming.Phase(DrawRowVectors);
         require(programs.size() == 2 && programResults[0] != nullptr && programResults[1] != nullptr, "rect-list requires vertex and fragment programs");
-        auto rectangle = PreparedRectangle(*programs[0].snapshot, programResults[0]->variantId, programResults[1]->variantId);
+        auto found = FindPreparedRectangle(*programs[0].snapshot, programResults[0]->variantId, programResults[1]->variantId);
+        if (!found) {
+            // A stage artifact prepared at use (see InvocationFor) has no rectangle pairing yet.
+            ResolvePreparedGraphics(*programs[0].snapshot, programs[1].snapshot, 17, localDevice->Target());
+            found = FindPreparedRectangle(*programs[0].snapshot, programResults[0]->variantId, programResults[1]->variantId);
+        }
+        require(found.has_value(), "prepared rectangle artifacts are missing");
+        auto rectangle = std::move(*found);
         if (rectListBuilt) {
             results[rectIndex] = std::move(rectangle.control);
             results[rectIndex + 1] = std::move(rectangle.evaluation);

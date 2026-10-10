@@ -244,8 +244,12 @@ void Registration(bool indirect) {
     header.registers[threadRegisterIndex].value = 0;
     ExpectFailure([&] { AgcDriverRegisterShader_nid_postfix(&header.shader); }, "must be nonzero");
     header.registers[threadRegisterIndex].value = 1;
+    // A program the recompiler cannot translate still registers: preparing it is deferred to its first use.
+    const auto instruction = code[0];
     code[0] = 0xffffffffu;
-    ExpectFailure([&] { AgcDriverRegisterShader_nid_postfix(&header.shader); }, "");
+    AgcDriverRegisterShader_nid_postfix(&header.shader);
+    code[0] = instruction;
+    AgcDriverRegisterShader_nid_postfix(&header.shader);
     std::vector<std::uint32_t> commands;
     for (const auto reg : header.registers) commands.insert(commands.end(), {0xc0017600u, reg.offset, reg.value});
     const std::array<std::uint32_t, 3> arguments{1, 1, 1};
