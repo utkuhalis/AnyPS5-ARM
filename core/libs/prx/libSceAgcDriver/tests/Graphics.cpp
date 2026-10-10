@@ -754,7 +754,8 @@ void DepthStencilTests() {
     queue.context[0x31b] = 1u << 26u;
     expectFailure([&] { AgcDriver::Graphics::DecodeState(queue); }, "mip exceeds");
     queue.context[0x31b] = 1u << 13u;
-    expectFailure([&] { AgcDriver::Graphics::DecodeState(queue); }, "several array slices");
+    // A view of several slices renders into its first one (layer exports are ignored).
+    Require(AgcDriver::Graphics::DecodeState(queue).color.address == AgcDriver::Graphics::DecodeState(makeState()).color.address, "a layered color view did not render into its first slice");
     const auto sliced = reinterpret_cast<std::uintptr_t>(sliceMemory.data());
     queue.context[0x318] = static_cast<std::uint32_t>(sliced >> 8u);
     queue.context[0x390] = static_cast<std::uint32_t>(sliced >> 40u);
@@ -769,7 +770,8 @@ void DepthStencilTests() {
     expectFailure([&] { AgcDriver::Graphics::DecodeState(queue); }, "beyond the 3D surface");
     queue.context[0x31b] = 0;
     queue.context[0x31c] |= 0x10000000;
-    expectFailure([&] { AgcDriver::Graphics::DecodeState(queue); }, "DCC 3D color targets");
+    // The DCC keys of a 3D target are ignored, as those of a mipmapped one.
+    Require(AgcDriver::Graphics::DecodeState(queue).color.dccAddress == 0, "a DCC 3D color target kept its DCC keys");
 }
 
 void depthMaintenanceTests() {

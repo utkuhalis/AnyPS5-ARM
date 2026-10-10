@@ -85,6 +85,13 @@ DrawVerdict Driver::draw(QueueState& queue, std::span<const std::uint32_t> packe
 
     resolveDrawDecode(queue, submission, decode, registerKey, drawKey, profile);
     const auto& graphics = decode->state;
+    // The geometry path runs as mesh shaders. A device without them (MoltenVK) cannot draw it, so the
+    // draw is skipped (in Stray, the translucency lighting volume's layered draws).
+    if (graphics.stages.mesh && !localDevice->MeshShaders()) {
+        static std::once_flag reported;
+        std::call_once(reported, [] { std::fprintf(stderr, "[gpu] the device has no mesh shaders; geometry-path draws are skipped\n"); });
+        return DrawVerdict::Nothing;
+    }
     const auto& pixel = decode->pixel;
     std::vector<DrawProgram> programs = decode->programs;
     const auto setMeshIndexBuffer = [&](const Pm4::DrawParameters& parameters) {

@@ -2524,6 +2524,10 @@ bool VulkanDevice::ConservativeRasterization() const {
     return state->conservativeRasterization;
 }
 
+bool VulkanDevice::MeshShaders() const {
+    return state->meshShader;
+}
+
 Graphics::Context VulkanDevice::graphicsContext() const {
     static const bool noCache = std::getenv("APS5_NO_CONTEXT_CACHE") != nullptr;
     if (state->contextReady && !noCache) return state->context;
