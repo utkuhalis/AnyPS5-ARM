@@ -212,6 +212,7 @@ void logLookup(const LookupRecord& record) {
 }
 
 std::shared_ptr<StorageTexture> cachedStorageTexture(const Context& context, std::span<const std::uint32_t> words, const GuestTextureResource& resource, std::uint32_t mip, std::uint64_t guestBytes = 0);
+std::shared_ptr<StorageTexture> cachedStorageTextureOverGuestMemory(const Context& context, std::span<const std::uint32_t> words, const GuestTextureResource& viewed, std::uint32_t mip, std::uint64_t guestBytes);
 
 bool MetadataMoved(const StorageTexture& image, const GuestTextureResource& resource) {
     return resource.dccAddress != 0 && image.Descriptor().dccAddress != resource.dccAddress && !image.ServesKeysAt(resource.dccAddress);
@@ -565,11 +566,25 @@ GuestTextureResource StorageSurface(const Context& context, const GuestTextureRe
 
 // `guestBytes` is the surface size when the caller described the surface already (0: described here).
 std::shared_ptr<StorageTexture> cachedStorageTexture(const Context& context, std::span<const std::uint32_t> words, const GuestTextureResource& viewed, std::uint32_t mip, std::uint64_t guestBytes) {
+    // A depth surface lives in its own depth image (see DepthSurface.cpp), not in guest memory: a
+    // shader reading it as a storage image gets a copy of the depth plane in the storage image.
     if (DepthSurfaceAt(viewed.baseAddress)) {
-        char text[112];
-        std::snprintf(text, sizeof(text), "AGC graphics: storage image access to depth/stencil surface 0x%llx is not implemented", static_cast<unsigned long long>(viewed.baseAddress));
-        throw std::runtime_error(text);
+        auto texture = cachedStorageTextureOverGuestMemory(context, words, viewed, mip, guestBytes);
+        const auto texelBytes = static_cast<std::uint32_t>(BytesPerElement(viewed.format));
+        std::string refusal = "mip " + std::to_string(mip);
+        if (mip != 0 || !CopyDepthSurfaceTo(context, viewed.baseAddress, texture->Image(), {viewed.width, viewed.height}, texelBytes, refusal)) {
+            char text[96];
+            std::snprintf(text, sizeof(text), "AGC graphics: storage image access to depth/stencil surface 0x%llx is not implemented: ", static_cast<unsigned long long>(viewed.baseAddress));
+            throw std::runtime_error(text + refusal);
+        }
+        static std::once_flag reported;
+        std::call_once(reported, [] { std::fprintf(stderr, "[gpu] a shader reads a depth surface as a storage image; its stores are not carried back to the depth surface\n"); });
+        return texture;
     }
+    return cachedStorageTextureOverGuestMemory(context, words, viewed, mip, guestBytes);
+}
+
+std::shared_ptr<StorageTexture> cachedStorageTextureOverGuestMemory(const Context& context, std::span<const std::uint32_t> words, const GuestTextureResource& viewed, std::uint32_t mip, std::uint64_t guestBytes) {
     static const bool disabled = std::getenv("APS5_NO_TEXTURE_CACHE") != nullptr;
     if (disabled) return std::make_shared<StorageTexture>(context, *context.detiler, viewed, mip);
     static_cast<void>(words);

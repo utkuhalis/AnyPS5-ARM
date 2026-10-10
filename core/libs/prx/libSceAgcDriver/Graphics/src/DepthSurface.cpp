@@ -172,6 +172,47 @@ std::shared_ptr<Texture> DepthSurfaceTexture(const Context& context, std::span<c
     return found == list.rend() ? nullptr : (*found)->Sampled(words, resource, components);
 }
 
+bool CopyDepthSurfaceTo(const Context& context, std::uint64_t address, VkImage destination, VkExtent2D extent, std::uint32_t texelBytes, std::string& refusal) {
+    std::lock_guard lock(surfacesMutex());
+    const auto& list = surfaces();
+    const auto found = std::find_if(list.rbegin(), list.rend(), [&](const auto& surface) {
+        return surface->context.device == context.device && (surface->target.address == address || (surface->target.stencilAddress != 0 && surface->target.stencilAddress == address));
+    });
+    if (found == list.rend()) {
+        refusal = "no depth surface lives there";
+        return false;
+    }
+    const auto& surface = **found;
+    const bool stencil = surface.target.address != address;
+    const bool d16 = surface.target.format == VK_FORMAT_D16_UNORM || surface.target.format == VK_FORMAT_D16_UNORM_S8_UINT;
+    const auto planeBytes = stencil ? 1u : d16 ? 2u : 4u;
+    if (surface.target.extent.width != extent.width || surface.target.extent.height != extent.height || texelBytes != planeBytes) {
+        refusal = "the depth surface is " + std::to_string(surface.target.extent.width) + "x" + std::to_string(surface.target.extent.height) + " (vk format " + std::to_string(surface.target.format) + "), the view " + std::to_string(extent.width) + "x" + std::to_string(extent.height) + " with " + std::to_string(texelBytes) + "-byte texels";
+        return false;
+    }
+    auto staging = std::make_shared<Buffer>(context, static_cast<std::size_t>(extent.width) * extent.height * texelBytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    auto* recorder = Recorder::Active();
+    std::unique_ptr<CommandBatch> batch;
+    if (recorder == nullptr) batch = std::make_unique<CommandBatch>(context);
+    const auto commands = recorder != nullptr ? recorder->Commands() : batch->Handle();
+    RecordMemoryBarrier(context, commands, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT);
+    VkBufferImageCopy region{};
+    region.imageSubresource = {static_cast<VkImageAspectFlags>(stencil ? VK_IMAGE_ASPECT_STENCIL_BIT : VK_IMAGE_ASPECT_DEPTH_BIT), 0, 0, 1};
+    region.imageExtent = {extent.width, extent.height, 1};
+    context.Function<PFN_vkCmdCopyImageToBuffer>("vkCmdCopyImageToBuffer")(commands, surface.image, VK_IMAGE_LAYOUT_GENERAL, staging->Handle(), 1, &region);
+    RecordMemoryBarrier(context, commands, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    context.Function<PFN_vkCmdCopyBufferToImage>("vkCmdCopyBufferToImage")(commands, staging->Handle(), destination, VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+    RecordMemoryBarrier(context, commands, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT);
+    if (batch) {
+        batch->SubmitAndWait();
+    } else {
+        recorder->Keep(staging);
+        Recorder::CountBarriers(Recorder::CommandClass::Draw, 3);
+    }
+    return true;
+}
+
 bool DepthSurfaceAt(std::uint64_t address) {
     std::lock_guard lock(surfacesMutex());
     return std::any_of(surfaces().begin(), surfaces().end(), [&](const auto& surface) { return surface->target.address == address || surface->target.stencilAddress == address; });

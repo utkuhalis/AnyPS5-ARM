@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <memory>
 #include <span>
+#include <string>
 
 namespace AgcDriver::Graphics {
 
@@ -15,6 +16,10 @@ VkImageView DepthSurfaceView(const Context& context, const DepthTarget& target);
 std::uint64_t DepthSliceBytes(VkExtent2D extent, std::uint32_t bytesPerTexel);
 void ClearDepthSurfaces(VkDevice device);
 bool DepthSurfaceAt(std::uint64_t address);
+// Copies the depth or stencil plane of the depth surface at `address` into mip 0, layer 0 of `destination`, a
+// color image in the GENERAL layout of the same extent and texel size (a storage image a shader
+// reads the depth through). False, `refusal` naming why, when no plane of that shape lives there.
+bool CopyDepthSurfaceTo(const Context& context, std::uint64_t address, VkImage destination, VkExtent2D extent, std::uint32_t texelBytes, std::string& refusal);
 std::shared_ptr<Texture> DepthSurfaceTexture(const Context& context, std::span<const std::uint32_t> words, const GuestTextureResource& resource, VkComponentMapping components);
 
 }
