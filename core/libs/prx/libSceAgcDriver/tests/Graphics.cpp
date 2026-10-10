@@ -2776,7 +2776,9 @@ int main() {
             bounded.minDepthBounds = 0.25f;
             AgcDriver::Graphics::ValidateDepthBounds(context, bounded);
             bounded.minDepthBounds = 1.5f;
-            expectFailure([&] { AgcDriver::Graphics::ValidateDepthBounds(context, bounded); }, "depth bounds outside [0, 1]");
+            // A device without the test draws without it (see Pipeline), so its bounds are not checked.
+            if (context.depthBounds) expectFailure([&] { AgcDriver::Graphics::ValidateDepthBounds(context, bounded); }, "depth bounds outside [0, 1]");
+            else AgcDriver::Graphics::ValidateDepthBounds(context, bounded);
             auto unrestricted = context;
             unrestricted.depthRangeUnrestricted = true;
             AgcDriver::Graphics::ValidateDepthBounds(unrestricted, bounded);
