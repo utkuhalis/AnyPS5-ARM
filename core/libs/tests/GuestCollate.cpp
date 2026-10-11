@@ -11,6 +11,7 @@
 extern "C" {
 extern GuestLocale::Implementation* _ZSt21_sceLibcClassicLocale_nid_postfix;
 std::size_t APS5_VABI _ZNSt7collateIcE7_GetcatEPPKNSt6locale5facetEPKS1__nid_postfix(GuestLocale::Facet** facet, const GuestLocale::Implementation* const* locale);
+std::size_t APS5_VABI _ZNSt7collateIwE7_GetcatEPPKNSt6locale5facetEPKS1__nid_postfix(GuestLocale::Facet** facet, const GuestLocale::Implementation* const* locale);
 }
 
 namespace {
@@ -152,5 +153,51 @@ int main() {
     require(frees == 0);
     Vtable(facet).facet.deleteObject(facet);
     require(frees == 1 && lastFree == collate);
+
+    using Wide = std::u16string;
+    struct WideVtable {
+        GuestLocale::FacetVtable facet;
+        int (APS5_VABI *compare)(const GuestLocale::CollateFacet*, const char16_t*, const char16_t*, const char16_t*, const char16_t*);
+        void* (APS5_VABI *transform)(void*, const GuestLocale::CollateFacet*, const char16_t*, const char16_t*);
+        std::int64_t (APS5_VABI *hash)(const GuestLocale::CollateFacet*, const char16_t*, const char16_t*);
+    };
+    struct WideResult {
+        std::uint64_t reserved;
+        union {
+            char16_t buffer[8];
+            char16_t* pointer;
+        };
+        std::uint64_t size;
+        std::uint64_t capacity;
+    };
+    GuestLocale::Facet* wide = nullptr;
+    reject([&] { _ZNSt7collateIwE7_GetcatEPPKNSt6locale5facetEPKS1__nid_postfix(&wide, &frenchPointer); });
+    require(wide == nullptr && _ZNSt7collateIwE7_GetcatEPPKNSt6locale5facetEPKS1__nid_postfix(nullptr, classic) == 1);
+    require(_ZNSt7collateIwE7_GetcatEPPKNSt6locale5facetEPKS1__nid_postfix(&wide, classic) == 1);
+    require(wide != nullptr && allocations == 4 && lastSize == sizeof(GuestLocale::CollateFacet) && lastAllocation == wide);
+    const auto& wideVtable = *reinterpret_cast<const WideVtable*>(wide->vtable);
+    const auto* wideCollate = reinterpret_cast<const GuestLocale::CollateFacet*>(wide);
+    const auto wideCompare = [&](const Wide& left, const Wide& right) {
+        return wideVtable.compare(wideCollate, left.data(), left.data() + left.size(), right.data(), right.data() + right.size());
+    };
+    require(wideCompare(u"abc", u"abd") == -1 && wideCompare(u"abd", u"abc") == 1 && wideCompare(u"abc", u"abc") == 0);
+    require(wideCompare(u"ab", u"abc") == -1 && wideCompare(u"\u00e9", u"z") == 1 && wideCompare(u"\uffff", u"\u0100") == 1);
+    const Wide wideText = u"abc";
+    reject([&] { wideVtable.compare(wideCollate, wideText.data() + 2, wideText.data(), wideText.data(), wideText.data() + 1); });
+    require(static_cast<std::uint64_t>(wideVtable.hash(wideCollate, wideText.data(), wideText.data())) == 0xcbf29ce484222325ull);
+    require(static_cast<std::uint64_t>(wideVtable.hash(wideCollate, u"\u0100", u"\u0100" + 1)) == ((0xcbf29ce484222325ull ^ 0x100ull) * 0x100000001b3ull));
+    WideResult wideResult;
+    std::memset(&wideResult, 0xcd, sizeof(wideResult));
+    const Wide seven = u"seven!!";
+    require(wideVtable.transform(&wideResult, wideCollate, seven.data(), seven.data() + seven.size()) == &wideResult);
+    require(wideResult.size == 7 && wideResult.capacity == 7 && Wide(wideResult.buffer) == seven && allocations == 4);
+    const Wide eight = u"eight!!!";
+    require(wideVtable.transform(&wideResult, wideCollate, eight.data(), eight.data() + eight.size()) == &wideResult);
+    require(allocations == 5 && lastSize == 18 && wideResult.pointer == lastAllocation && wideResult.capacity == 8 && Wide(wideResult.pointer) == eight);
+    std::free(wideResult.pointer);
+    const Wide wideEmbedded(u"a\0b", 3);
+    reject([&] { wideVtable.transform(&wideResult, wideCollate, wideEmbedded.data(), wideEmbedded.data() + wideEmbedded.size()); });
+    wideVtable.facet.deleteObject(wide);
+    require(frees == 2 && lastFree == wide);
     return 0;
 }

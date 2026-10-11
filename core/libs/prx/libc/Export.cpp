@@ -1,5 +1,7 @@
 #include <cstdint>
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
 #include "SceTypes.hpp"
 #include "prx/libc/include/General.hpp"
 #include "prx/libc/include/HeapDiagnostics.hpp"
@@ -18,11 +20,12 @@ extern "C" {
         LibcHeapTraceInfo_nid_no_patch(info);
     }
 
-// Dead import of Cyberpunk 2077 (PPSA04029): no call sites, but the
-// Windows loader resolves imports strictly, so it must be present.
-int APS5_VABI _ZSt14_Atomic_assertPKcS0__nid_postfix() {
- NotImplemented_nid_no_patch(__func__);
- return 0;
+// std::_Atomic_assert(expression, location): Dinkumware's failure report for an atomic operation
+// given an invalid memory order. Imported (without call sites) by Cyberpunk 2077 (PPSA04029).
+[[noreturn]] void APS5_VABI _ZSt14_Atomic_assertPKcS0__nid_postfix(const char* expression, const char* location) {
+    std::fprintf(stderr, "[libc] guest atomic assertion failed: %s (%s)\n", expression ? expression : "?", location ? location : "?");
+    std::fflush(stderr);
+    std::abort();
 }
 
 APS5_EXPORT("Ye20uNnlglA", libcCyberUnknown02);
