@@ -9,46 +9,41 @@ constexpr std::int32_t SCE_KERNEL_ERROR_EOPNOTSUPP = static_cast<std::int32_t>(0
 
 }
 
+// There is no speech engine: initialization fails, so no library state, handle or utterance ever
+// exists and every other call reports the same unsupported operation without touching its arguments.
 extern "C" {
-
-int APS5_VABI sceTextToSpeech2GetSystemStatus() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
 
 std::int32_t APS5_VABI sceTextToSpeech2Initialize(const void* param) {
     (void)param;
     return SCE_KERNEL_ERROR_EOPNOTSUPP;
 }
 
-int APS5_VABI sceTextToSpeech2Cancel() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceTextToSpeech2GetSystemStatus() {
+    return SCE_KERNEL_ERROR_EOPNOTSUPP;
 }
 
-int APS5_VABI sceTextToSpeech2Close() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceTextToSpeech2Open() {
+    return SCE_KERNEL_ERROR_EOPNOTSUPP;
 }
 
-int APS5_VABI sceTextToSpeech2GetSpeechStatus() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceTextToSpeech2Speak() {
+    return SCE_KERNEL_ERROR_EOPNOTSUPP;
 }
 
-int APS5_VABI sceTextToSpeech2Open() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceTextToSpeech2Cancel() {
+    return SCE_KERNEL_ERROR_EOPNOTSUPP;
 }
 
-int APS5_VABI sceTextToSpeech2Speak() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceTextToSpeech2GetSpeechStatus() {
+    return SCE_KERNEL_ERROR_EOPNOTSUPP;
 }
 
-int APS5_VABI sceTextToSpeech2Terminate() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceTextToSpeech2Close() {
+    return SCE_KERNEL_ERROR_EOPNOTSUPP;
+}
+
+std::int32_t APS5_VABI sceTextToSpeech2Terminate() {
+    return SCE_KERNEL_ERROR_EOPNOTSUPP;
 }
 
 }
