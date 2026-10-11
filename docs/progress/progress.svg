@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 310" width="1000" height="310">
 <rect x="0.00" y="0.00" width="1000.00" height="310.00" fill="#0d1117" stroke="#0d1117" stroke-width="0"/>
-<text x="4.00" y="21.00" font-family="sans-serif" font-size="16" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">System libraries*: 85.97% (2787/3242)</text>
+<text x="4.00" y="21.00" font-family="sans-serif" font-size="16" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">System libraries*: 91.58% (2969/3242)</text>
 <g><title>libc: 624/630 (99%)</title>
 <rect x="1.00" y="31.00" width="6.22" height="6.56" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="7.22" y="31.00" width="6.22" height="6.56" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -1396,7 +1396,7 @@
 <rect x="176.20" y="30.00" width="85.35" height="114.70" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="181.20" y="46.00" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">Agc</text>
 </g>
-<g><title>libSceFont: 119/195 (61%); shared by libSceFont-module, libSceFont.native</title>
+<g><title>libSceFont: 129/195 (66%); shared by libSceFont-module, libSceFont.native</title>
 <rect x="177.20" y="145.70" width="6.41" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="183.61" y="145.70" width="6.41" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="190.02" y="145.70" width="6.41" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -1516,16 +1516,16 @@
 <rect x="254.14" y="196.73" width="6.41" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="177.20" y="203.11" width="6.41" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="183.61" y="203.11" width="6.41" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="190.02" y="203.11" width="6.41" height="6.38" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="196.43" y="203.11" width="6.41" height="6.38" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="202.84" y="203.11" width="6.41" height="6.38" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="209.25" y="203.11" width="6.41" height="6.38" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="215.67" y="203.11" width="6.41" height="6.38" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="222.08" y="203.11" width="6.41" height="6.38" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="228.49" y="203.11" width="6.41" height="6.38" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="234.90" y="203.11" width="6.41" height="6.38" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="241.31" y="203.11" width="6.41" height="6.38" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="247.72" y="203.11" width="6.41" height="6.38" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="190.02" y="203.11" width="6.41" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="196.43" y="203.11" width="6.41" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="202.84" y="203.11" width="6.41" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="209.25" y="203.11" width="6.41" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="215.67" y="203.11" width="6.41" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="222.08" y="203.11" width="6.41" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="228.49" y="203.11" width="6.41" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="234.90" y="203.11" width="6.41" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="241.31" y="203.11" width="6.41" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="247.72" y="203.11" width="6.41" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="254.14" y="203.11" width="6.41" height="6.38" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="177.20" y="209.49" width="6.41" height="6.38" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="183.61" y="209.49" width="6.41" height="6.38" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
@@ -2007,7 +2007,7 @@
 <rect x="423.41" y="30.00" width="38.13" height="54.94" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="428.41" y="46.00" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">Net</text>
 </g>
-<g><title>libSceAudioOut: 31/43 (72%)</title>
+<g><title>libSceAudioOut: 35/43 (81%)</title>
 <rect x="462.54" y="31.00" width="6.29" height="5.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="468.83" y="31.00" width="6.29" height="5.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="475.12" y="31.00" width="6.29" height="5.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2039,10 +2039,10 @@
 <rect x="481.42" y="60.41" width="6.29" height="5.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="487.71" y="60.41" width="6.29" height="5.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="462.54" y="66.29" width="6.29" height="5.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="468.83" y="66.29" width="6.29" height="5.88" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="475.12" y="66.29" width="6.29" height="5.88" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="481.42" y="66.29" width="6.29" height="5.88" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="487.71" y="66.29" width="6.29" height="5.88" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="468.83" y="66.29" width="6.29" height="5.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="475.12" y="66.29" width="6.29" height="5.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="481.42" y="66.29" width="6.29" height="5.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="487.71" y="66.29" width="6.29" height="5.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="462.54" y="72.17" width="7.87" height="5.88" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="470.40" y="72.17" width="7.87" height="5.88" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="478.27" y="72.17" width="7.87" height="5.88" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
@@ -2054,7 +2054,7 @@
 <rect x="461.54" y="30.00" width="33.46" height="54.94" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="466.54" y="46.00" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">Aud</text>
 </g>
-<g><title>libSceFontFt: 23/42 (55%); shared by libSceFontFt-module</title>
+<g><title>libSceFontFt: 37/42 (88%); shared by libSceFontFt-module</title>
 <rect x="262.55" y="85.94" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="268.55" y="85.94" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="274.54" y="85.94" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2078,20 +2078,20 @@
 <rect x="274.54" y="105.34" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="280.54" y="105.34" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="286.54" y="105.34" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="292.54" y="105.34" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="262.55" y="111.80" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="268.55" y="111.80" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="274.54" y="111.80" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="280.54" y="111.80" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="286.54" y="111.80" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="292.54" y="111.80" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="262.55" y="118.27" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="268.55" y="118.27" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="274.54" y="118.27" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="280.54" y="118.27" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="286.54" y="118.27" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="292.54" y="118.27" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="262.55" y="124.73" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="292.54" y="105.34" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="262.55" y="111.80" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="268.55" y="111.80" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="274.54" y="111.80" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="280.54" y="111.80" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="286.54" y="111.80" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="292.54" y="111.80" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="262.55" y="118.27" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="268.55" y="118.27" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="274.54" y="118.27" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="280.54" y="118.27" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="286.54" y="118.27" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="292.54" y="118.27" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="262.55" y="124.73" width="6.00" height="6.47" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="268.55" y="124.73" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="274.54" y="124.73" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="280.54" y="124.73" width="6.00" height="6.47" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
@@ -2190,7 +2190,7 @@
 <rect x="261.55" y="178.34" width="37.99" height="46.14" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="266.55" y="194.34" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">NpU</text>
 </g>
-<g><title>libSceVideoOut: 37/40 (92%)</title>
+<g><title>libSceVideoOut: 39/40 (98%)</title>
 <rect x="262.55" y="225.48" width="6.00" height="6.14" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="268.55" y="225.48" width="6.00" height="6.14" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="274.54" y="225.48" width="6.00" height="6.14" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2228,13 +2228,13 @@
 <rect x="291.34" y="256.20" width="7.20" height="6.14" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="262.55" y="262.34" width="7.20" height="6.14" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="269.75" y="262.34" width="7.20" height="6.14" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="276.94" y="262.34" width="7.20" height="6.14" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="284.14" y="262.34" width="7.20" height="6.14" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="276.94" y="262.34" width="7.20" height="6.14" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="284.14" y="262.34" width="7.20" height="6.14" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="291.34" y="262.34" width="7.20" height="6.14" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="261.55" y="224.48" width="37.99" height="45.01" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="266.55" y="240.48" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">Vid</text>
 </g>
-<g><title>libSceNgs2.native: 32/36 (89%); shared by libSceNgs2</title>
+<g><title>libSceNgs2.native: 36/36 (100%); shared by libSceNgs2</title>
 <rect x="262.55" y="270.49" width="6.00" height="6.42" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="268.55" y="270.49" width="6.00" height="6.42" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="274.54" y="270.49" width="6.00" height="6.42" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2267,14 +2267,14 @@
 <rect x="292.54" y="296.16" width="6.00" height="6.42" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="262.55" y="302.58" width="6.00" height="6.42" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="268.55" y="302.58" width="6.00" height="6.42" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="274.54" y="302.58" width="6.00" height="6.42" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="280.54" y="302.58" width="6.00" height="6.42" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="286.54" y="302.58" width="6.00" height="6.42" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="292.54" y="302.58" width="6.00" height="6.42" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="274.54" y="302.58" width="6.00" height="6.42" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="280.54" y="302.58" width="6.00" height="6.42" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="286.54" y="302.58" width="6.00" height="6.42" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="292.54" y="302.58" width="6.00" height="6.42" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="261.55" y="269.49" width="37.99" height="40.51" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="266.55" y="285.49" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">Ngs</text>
 </g>
-<g><title>libSceAjm.native: 30/35 (86%)</title>
+<g><title>libSceAjm.native: 31/35 (89%)</title>
 <rect x="300.54" y="85.94" width="6.45" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="306.99" y="85.94" width="6.45" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="313.44" y="85.94" width="6.45" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2305,7 +2305,7 @@
 <rect x="319.90" y="109.10" width="6.45" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="326.35" y="109.10" width="6.45" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="332.81" y="109.10" width="6.45" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="300.54" y="114.89" width="7.74" height="5.79" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="300.54" y="114.89" width="7.74" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="308.28" y="114.89" width="7.74" height="5.79" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="316.03" y="114.89" width="7.74" height="5.79" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="323.77" y="114.89" width="7.74" height="5.79" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
@@ -2351,7 +2351,7 @@
 <rect x="340.26" y="84.94" width="39.56" height="36.74" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="345.26" y="100.94" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">Rtc</text>
 </g>
-<g><title>libSceNpManager: 30/33 (91%)</title>
+<g><title>libSceNpManager: 33/33 (100%)</title>
 <rect x="380.82" y="85.94" width="6.07" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="386.88" y="85.94" width="6.07" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="392.95" y="85.94" width="6.07" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2382,13 +2382,13 @@
 <rect x="409.93" y="109.10" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="380.82" y="114.89" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="388.10" y="114.89" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="395.37" y="114.89" width="7.28" height="5.79" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="402.65" y="114.89" width="7.28" height="5.79" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="409.93" y="114.89" width="7.28" height="5.79" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="395.37" y="114.89" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="402.65" y="114.89" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="409.93" y="114.89" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="379.82" y="84.94" width="38.39" height="36.74" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="384.82" y="100.94" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">NpMa</text>
 </g>
-<g><title>libScePad: 24/33 (73%)</title>
+<g><title>libScePad: 32/33 (97%)</title>
 <rect x="419.21" y="85.94" width="6.07" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="425.28" y="85.94" width="6.07" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="431.34" y="85.94" width="6.07" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2413,14 +2413,14 @@
 <rect x="441.05" y="103.31" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="448.33" y="103.31" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="419.21" y="109.10" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="426.49" y="109.10" width="7.28" height="5.79" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="433.77" y="109.10" width="7.28" height="5.79" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="441.05" y="109.10" width="7.28" height="5.79" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="448.33" y="109.10" width="7.28" height="5.79" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="419.21" y="114.89" width="7.28" height="5.79" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="426.49" y="114.89" width="7.28" height="5.79" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="433.77" y="114.89" width="7.28" height="5.79" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="441.05" y="114.89" width="7.28" height="5.79" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="426.49" y="109.10" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="433.77" y="109.10" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="441.05" y="109.10" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="448.33" y="109.10" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="419.21" y="114.89" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="426.49" y="114.89" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="433.77" y="114.89" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="441.05" y="114.89" width="7.28" height="5.79" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="448.33" y="114.89" width="7.28" height="5.79" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="418.21" y="84.94" width="38.39" height="36.74" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="423.21" y="100.94" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">Pad</text>
@@ -2462,37 +2462,37 @@
 <rect x="456.61" y="84.94" width="38.39" height="36.74" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="461.61" y="100.94" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">Ult</text>
 </g>
-<g><title>libSceUsbd: 5/30 (17%)</title>
+<g><title>libSceUsbd: 30/30 (100%)</title>
 <rect x="300.54" y="122.68" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="306.45" y="122.68" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="312.36" y="122.68" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="318.27" y="122.68" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="324.18" y="122.68" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="300.54" y="129.12" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="306.45" y="129.12" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="312.36" y="129.12" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="318.27" y="129.12" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="324.18" y="129.12" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="300.54" y="135.56" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="306.45" y="135.56" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="312.36" y="135.56" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="318.27" y="135.56" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="324.18" y="135.56" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="300.54" y="142.00" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="306.45" y="142.00" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="312.36" y="142.00" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="318.27" y="142.00" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="324.18" y="142.00" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="300.54" y="148.45" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="306.45" y="148.45" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="312.36" y="148.45" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="318.27" y="148.45" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="324.18" y="148.45" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="300.54" y="154.89" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="306.45" y="154.89" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="312.36" y="154.89" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="318.27" y="154.89" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="324.18" y="154.89" width="5.91" height="6.44" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="300.54" y="129.12" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="306.45" y="129.12" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="312.36" y="129.12" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="318.27" y="129.12" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="324.18" y="129.12" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="300.54" y="135.56" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="306.45" y="135.56" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="312.36" y="135.56" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="318.27" y="135.56" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="324.18" y="135.56" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="300.54" y="142.00" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="306.45" y="142.00" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="312.36" y="142.00" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="318.27" y="142.00" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="324.18" y="142.00" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="300.54" y="148.45" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="306.45" y="148.45" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="312.36" y="148.45" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="318.27" y="148.45" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="324.18" y="148.45" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="300.54" y="154.89" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="306.45" y="154.89" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="312.36" y="154.89" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="318.27" y="154.89" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="324.18" y="154.89" width="5.91" height="6.44" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="299.54" y="121.68" width="31.56" height="40.64" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="304.54" y="137.68" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">Usb</text>
 </g>
@@ -2528,28 +2528,28 @@
 <rect x="299.54" y="162.33" width="31.56" height="37.93" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="304.54" y="178.33" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">AvP</text>
 </g>
-<g><title>libScePsml_debug: 3/28 (11%); shared by libScePsml</title>
+<g><title>libScePsml_debug: 21/28 (75%); shared by libScePsml</title>
 <rect x="300.54" y="201.26" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="306.45" y="201.26" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="312.36" y="201.26" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="318.27" y="201.26" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="324.18" y="201.26" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="300.54" y="207.25" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="306.45" y="207.25" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="312.36" y="207.25" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="318.27" y="207.25" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="324.18" y="207.25" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="300.54" y="213.24" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="306.45" y="213.24" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="312.36" y="213.24" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="318.27" y="213.24" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="324.18" y="213.24" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="300.54" y="219.23" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="306.45" y="219.23" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="312.36" y="219.23" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="318.27" y="219.23" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="324.18" y="219.23" width="5.91" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="300.54" y="225.22" width="7.39" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="318.27" y="201.26" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="324.18" y="201.26" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="300.54" y="207.25" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="306.45" y="207.25" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="312.36" y="207.25" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="318.27" y="207.25" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="324.18" y="207.25" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="300.54" y="213.24" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="306.45" y="213.24" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="312.36" y="213.24" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="318.27" y="213.24" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="324.18" y="213.24" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="300.54" y="219.23" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="306.45" y="219.23" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="312.36" y="219.23" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="318.27" y="219.23" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="324.18" y="219.23" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="300.54" y="225.22" width="7.39" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="307.93" y="225.22" width="7.39" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="315.32" y="225.22" width="7.39" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="322.70" y="225.22" width="7.39" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
@@ -2560,7 +2560,7 @@
 <rect x="299.54" y="200.26" width="31.56" height="37.93" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="304.54" y="216.26" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">Psm</text>
 </g>
-<g><title>libSceSaveData.native: 25/28 (89%)</title>
+<g><title>libSceSaveData.native: 26/28 (93%)</title>
 <rect x="300.54" y="239.20" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="306.45" y="239.20" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="312.36" y="239.20" width="5.91" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2586,13 +2586,13 @@
 <rect x="315.32" y="263.15" width="7.39" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="322.70" y="263.15" width="7.39" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="300.54" y="269.14" width="7.39" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="307.93" y="269.14" width="7.39" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="307.93" y="269.14" width="7.39" height="5.99" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="315.32" y="269.14" width="7.39" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="322.70" y="269.14" width="7.39" height="5.99" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="299.54" y="238.20" width="31.56" height="37.93" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="304.54" y="254.20" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">Sav</text>
 </g>
-<g><title>libSceNpWebApi2: 24/25 (96%)</title>
+<g><title>libSceNpWebApi2: 25/25 (100%)</title>
 <rect x="300.54" y="277.13" width="5.91" height="6.37" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="306.45" y="277.13" width="5.91" height="6.37" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="312.36" y="277.13" width="5.91" height="6.37" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2617,11 +2617,11 @@
 <rect x="306.45" y="302.63" width="5.91" height="6.37" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="312.36" y="302.63" width="5.91" height="6.37" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="318.27" y="302.63" width="5.91" height="6.37" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="324.18" y="302.63" width="5.91" height="6.37" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="324.18" y="302.63" width="5.91" height="6.37" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="299.54" y="276.13" width="31.56" height="33.87" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="304.54" y="292.13" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">NpW</text>
 </g>
-<g><title>libSceSystemService: 19/25 (76%)</title>
+<g><title>libSceSystemService: 22/25 (88%)</title>
 <rect x="332.09" y="122.68" width="4.89" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="336.99" y="122.68" width="4.89" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="341.88" y="122.68" width="4.89" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2641,9 +2641,9 @@
 <rect x="349.22" y="136.42" width="5.71" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="354.93" y="136.42" width="5.71" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="360.65" y="136.42" width="5.71" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="332.09" y="143.29" width="5.71" height="6.87" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="337.80" y="143.29" width="5.71" height="6.87" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="343.51" y="143.29" width="5.71" height="6.87" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="332.09" y="143.29" width="5.71" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="337.80" y="143.29" width="5.71" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="343.51" y="143.29" width="5.71" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="349.22" y="143.29" width="5.71" height="6.87" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="354.93" y="143.29" width="5.71" height="6.87" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="360.65" y="143.29" width="5.71" height="6.87" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
@@ -2677,7 +2677,7 @@
 <rect x="367.36" y="121.68" width="33.36" height="29.47" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="372.36" y="137.68" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">Aud</text>
 </g>
-<g><title>libSceSystemGesture: 19/22 (86%)</title>
+<g><title>libSceSystemGesture: 22/22 (100%)</title>
 <rect x="401.72" y="122.68" width="4.99" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="406.70" y="122.68" width="4.99" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="411.69" y="122.68" width="4.99" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2697,13 +2697,13 @@
 <rect x="425.65" y="136.42" width="5.98" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="401.72" y="143.29" width="5.98" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="407.70" y="143.29" width="5.98" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="413.68" y="143.29" width="5.98" height="6.87" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="419.66" y="143.29" width="5.98" height="6.87" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="425.65" y="143.29" width="5.98" height="6.87" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="413.68" y="143.29" width="5.98" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="419.66" y="143.29" width="5.98" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="425.65" y="143.29" width="5.98" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="400.72" y="121.68" width="31.91" height="29.47" fill="none" stroke="#0d1117" stroke-width="2"/>
 <text x="405.72" y="137.68" font-family="sans-serif" font-size="12" fill="#ffffff" stroke="#0d1117" stroke-width="3" paint-order="stroke">Sys</text>
 </g>
-<g><title>libSceVoice: 17/22 (77%)</title>
+<g><title>libSceVoice: 18/22 (82%)</title>
 <rect x="433.63" y="122.68" width="4.99" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="438.61" y="122.68" width="4.99" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="443.60" y="122.68" width="4.99" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2721,7 +2721,7 @@
 <rect x="445.59" y="136.42" width="5.98" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="451.57" y="136.42" width="5.98" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="457.56" y="136.42" width="5.98" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="433.63" y="143.29" width="5.98" height="6.87" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="433.63" y="143.29" width="5.98" height="6.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="439.61" y="143.29" width="5.98" height="6.87" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="445.59" y="143.29" width="5.98" height="6.87" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="451.57" y="143.29" width="5.98" height="6.87" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
@@ -2753,7 +2753,7 @@
 <rect x="486.88" y="144.66" width="7.12" height="5.49" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="464.54" y="121.68" width="30.46" height="29.47" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceNpEntitlementAccess: 15/20 (75%)</title>
+<g><title>libSceNpEntitlementAccess: 19/20 (95%)</title>
 <rect x="332.09" y="152.16" width="6.70" height="5.54" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="338.79" y="152.16" width="6.70" height="5.54" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="345.49" y="152.16" width="6.70" height="5.54" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2769,14 +2769,14 @@
 <rect x="332.09" y="168.77" width="6.70" height="5.54" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="338.79" y="168.77" width="6.70" height="5.54" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="345.49" y="168.77" width="6.70" height="5.54" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="352.19" y="168.77" width="6.70" height="5.54" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="332.09" y="174.31" width="6.70" height="5.54" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="338.79" y="174.31" width="6.70" height="5.54" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="345.49" y="174.31" width="6.70" height="5.54" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="352.19" y="168.77" width="6.70" height="5.54" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="332.09" y="174.31" width="6.70" height="5.54" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="338.79" y="174.31" width="6.70" height="5.54" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="345.49" y="174.31" width="6.70" height="5.54" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="352.19" y="174.31" width="6.70" height="5.54" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="331.09" y="151.16" width="28.80" height="29.69" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceNpTrophy2: 16/18 (89%)</title>
+<g><title>libSceNpTrophy2: 17/18 (94%)</title>
 <rect x="332.09" y="181.85" width="5.36" height="6.18" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="337.45" y="181.85" width="5.36" height="6.18" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="342.81" y="181.85" width="5.36" height="6.18" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2793,7 +2793,7 @@
 <rect x="352.19" y="194.21" width="6.70" height="6.18" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="332.09" y="200.39" width="6.70" height="6.18" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="338.79" y="200.39" width="6.70" height="6.18" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="345.49" y="200.39" width="6.70" height="6.18" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="345.49" y="200.39" width="6.70" height="6.18" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="352.19" y="200.39" width="6.70" height="6.18" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="331.09" y="180.85" width="28.80" height="26.72" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
@@ -2818,27 +2818,27 @@
 <rect x="352.19" y="227.11" width="6.70" height="6.18" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="331.09" y="207.57" width="28.80" height="26.72" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceHmd2: 1/17 (6%)</title>
+<g><title>libSceHmd2: 17/17 (100%)</title>
 <rect x="332.09" y="235.29" width="5.36" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="337.45" y="235.29" width="5.36" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="342.81" y="235.29" width="5.36" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="348.17" y="235.29" width="5.36" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="353.53" y="235.29" width="5.36" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="332.09" y="241.10" width="6.70" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="338.79" y="241.10" width="6.70" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="345.49" y="241.10" width="6.70" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="352.19" y="241.10" width="6.70" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="332.09" y="246.91" width="6.70" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="338.79" y="246.91" width="6.70" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="345.49" y="246.91" width="6.70" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="352.19" y="246.91" width="6.70" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="332.09" y="252.72" width="6.70" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="338.79" y="252.72" width="6.70" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="345.49" y="252.72" width="6.70" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="352.19" y="252.72" width="6.70" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="337.45" y="235.29" width="5.36" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="342.81" y="235.29" width="5.36" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="348.17" y="235.29" width="5.36" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="353.53" y="235.29" width="5.36" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="332.09" y="241.10" width="6.70" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="338.79" y="241.10" width="6.70" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="345.49" y="241.10" width="6.70" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="352.19" y="241.10" width="6.70" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="332.09" y="246.91" width="6.70" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="338.79" y="246.91" width="6.70" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="345.49" y="246.91" width="6.70" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="352.19" y="246.91" width="6.70" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="332.09" y="252.72" width="6.70" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="338.79" y="252.72" width="6.70" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="345.49" y="252.72" width="6.70" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="352.19" y="252.72" width="6.70" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="331.09" y="234.29" width="28.80" height="25.24" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceShare: 16/17 (94%)</title>
+<g><title>libSceShare: 17/17 (100%)</title>
 <rect x="332.09" y="260.53" width="5.36" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="337.45" y="260.53" width="5.36" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="342.81" y="260.53" width="5.36" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2855,7 +2855,7 @@
 <rect x="332.09" y="277.95" width="6.70" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="338.79" y="277.95" width="6.70" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="345.49" y="277.95" width="6.70" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="352.19" y="277.95" width="6.70" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="352.19" y="277.95" width="6.70" height="5.81" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="331.09" y="259.53" width="28.80" height="25.24" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
 <g><title>libSceSsl: 8/17 (47%)</title>
@@ -2878,7 +2878,7 @@
 <rect x="352.19" y="303.19" width="6.70" height="5.81" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="331.09" y="284.76" width="28.80" height="25.24" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceNpSessionSignaling: 12/16 (75%)</title>
+<g><title>libSceNpSessionSignaling: 15/16 (94%)</title>
 <rect x="360.89" y="152.16" width="6.01" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="366.90" y="152.16" width="6.01" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="372.91" y="152.16" width="6.01" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2891,13 +2891,13 @@
 <rect x="366.90" y="164.29" width="6.01" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="372.91" y="164.29" width="6.01" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="378.93" y="164.29" width="6.01" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="360.89" y="170.35" width="6.01" height="6.07" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="366.90" y="170.35" width="6.01" height="6.07" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="372.91" y="170.35" width="6.01" height="6.07" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="360.89" y="170.35" width="6.01" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="366.90" y="170.35" width="6.01" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="372.91" y="170.35" width="6.01" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="378.93" y="170.35" width="6.01" height="6.07" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="359.89" y="151.16" width="26.05" height="26.26" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceIme: 13/14 (93%); shared by libSceImeBackend</title>
+<g><title>libSceIme: 14/14 (100%); shared by libSceImeBackend</title>
 <rect x="386.94" y="152.16" width="5.20" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="392.13" y="152.16" width="5.20" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="397.33" y="152.16" width="5.20" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2911,7 +2911,7 @@
 <rect x="400.80" y="164.29" width="6.93" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="386.94" y="170.35" width="6.93" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="393.87" y="170.35" width="6.93" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="400.80" y="170.35" width="6.93" height="6.07" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="400.80" y="170.35" width="6.93" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="385.94" y="151.16" width="22.79" height="26.26" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
 <g><title>libSceRudp: 14/14 (100%)</title>
@@ -2947,7 +2947,7 @@
 <rect x="445.29" y="170.35" width="6.39" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="431.52" y="151.16" width="21.16" height="26.26" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceShare.native: 9/13 (69%)</title>
+<g><title>libSceShare.native: 13/13 (100%)</title>
 <rect x="453.68" y="152.16" width="4.79" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="458.47" y="152.16" width="4.79" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="463.26" y="152.16" width="4.79" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -2957,10 +2957,10 @@
 <rect x="466.45" y="158.22" width="6.39" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="453.68" y="164.29" width="6.39" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="460.06" y="164.29" width="6.39" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="466.45" y="164.29" width="6.39" height="6.07" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="453.68" y="170.35" width="6.39" height="6.07" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="460.06" y="170.35" width="6.39" height="6.07" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="466.45" y="170.35" width="6.39" height="6.07" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="466.45" y="164.29" width="6.39" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="453.68" y="170.35" width="6.39" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="460.06" y="170.35" width="6.39" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="466.45" y="170.35" width="6.39" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="452.68" y="151.16" width="21.16" height="26.26" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
 <g><title>libSceVdecsw: 13/13 (100%)</title>
@@ -2979,23 +2979,23 @@
 <rect x="487.61" y="170.35" width="6.39" height="6.07" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="473.84" y="151.16" width="21.16" height="26.26" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceVoiceQoS: 1/13 (8%)</title>
+<g><title>libSceVoiceQoS: 13/13 (100%)</title>
 <rect x="360.89" y="178.42" width="5.06" height="5.74" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="365.95" y="178.42" width="5.06" height="5.74" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="371.02" y="178.42" width="5.06" height="5.74" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="376.08" y="178.42" width="5.06" height="5.74" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="360.89" y="184.16" width="6.75" height="5.74" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="367.64" y="184.16" width="6.75" height="5.74" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="374.39" y="184.16" width="6.75" height="5.74" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="360.89" y="189.91" width="6.75" height="5.74" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="367.64" y="189.91" width="6.75" height="5.74" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="374.39" y="189.91" width="6.75" height="5.74" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="360.89" y="195.65" width="6.75" height="5.74" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="367.64" y="195.65" width="6.75" height="5.74" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="374.39" y="195.65" width="6.75" height="5.74" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="365.95" y="178.42" width="5.06" height="5.74" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="371.02" y="178.42" width="5.06" height="5.74" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="376.08" y="178.42" width="5.06" height="5.74" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="360.89" y="184.16" width="6.75" height="5.74" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="367.64" y="184.16" width="6.75" height="5.74" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="374.39" y="184.16" width="6.75" height="5.74" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="360.89" y="189.91" width="6.75" height="5.74" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="367.64" y="189.91" width="6.75" height="5.74" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="374.39" y="189.91" width="6.75" height="5.74" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="360.89" y="195.65" width="6.75" height="5.74" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="367.64" y="195.65" width="6.75" height="5.74" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="374.39" y="195.65" width="6.75" height="5.74" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="359.89" y="177.42" width="22.25" height="24.98" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceAppContent: 11/12 (92%)</title>
+<g><title>libSceAppContent: 12/12 (100%)</title>
 <rect x="360.89" y="203.40" width="6.75" height="5.26" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="367.64" y="203.40" width="6.75" height="5.26" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="374.39" y="203.40" width="6.75" height="5.26" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -3007,7 +3007,7 @@
 <rect x="374.39" y="213.93" width="6.75" height="5.26" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="360.89" y="219.19" width="6.75" height="5.26" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="367.64" y="219.19" width="6.75" height="5.26" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="374.39" y="219.19" width="6.75" height="5.26" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="374.39" y="219.19" width="6.75" height="5.26" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="359.89" y="202.40" width="22.25" height="23.06" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
 <g><title>libSceFiber: 12/12 (100%)</title>
@@ -3025,7 +3025,7 @@
 <rect x="374.39" y="242.25" width="6.75" height="5.26" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="359.89" y="225.46" width="22.25" height="23.06" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceNpCommerce: 10/11 (91%)</title>
+<g><title>libSceNpCommerce: 11/11 (100%)</title>
 <rect x="360.89" y="249.51" width="5.06" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="365.95" y="249.51" width="5.06" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="371.02" y="249.51" width="5.06" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -3036,7 +3036,7 @@
 <rect x="376.08" y="255.89" width="5.06" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="360.89" y="262.27" width="6.75" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="367.64" y="262.27" width="6.75" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="374.39" y="262.27" width="6.75" height="6.38" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="374.39" y="262.27" width="6.75" height="6.38" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="359.89" y="248.51" width="22.25" height="21.14" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
 <g><title>libSceVideodec2: 11/11 (100%)</title>
@@ -3105,7 +3105,7 @@
 <rect x="443.23" y="189.46" width="7.01" height="5.52" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="428.21" y="177.42" width="23.03" height="18.56" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceWebBrowserDialog: 7/10 (70%)</title>
+<g><title>libSceWebBrowserDialog: 10/10 (100%)</title>
 <rect x="452.24" y="178.42" width="5.26" height="5.52" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="457.50" y="178.42" width="5.26" height="5.52" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="462.75" y="178.42" width="5.26" height="5.52" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
@@ -3113,9 +3113,9 @@
 <rect x="452.24" y="183.94" width="7.01" height="5.52" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="459.25" y="183.94" width="7.01" height="5.52" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="466.26" y="183.94" width="7.01" height="5.52" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="452.24" y="189.46" width="7.01" height="5.52" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="459.25" y="189.46" width="7.01" height="5.52" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="466.26" y="189.46" width="7.01" height="5.52" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="452.24" y="189.46" width="7.01" height="5.52" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="459.25" y="189.46" width="7.01" height="5.52" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="466.26" y="189.46" width="7.01" height="5.52" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="451.24" y="177.42" width="23.03" height="18.56" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
 <g><title>libSceHmd: 9/9 (100%)</title>
@@ -3178,24 +3178,24 @@
 <rect x="453.43" y="208.78" width="5.84" height="5.90" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="440.74" y="195.98" width="19.53" height="19.70" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceAcm: 6/8 (75%)</title>
+<g><title>libSceAcm: 8/8 (100%)</title>
 <rect x="461.27" y="196.98" width="5.12" height="5.90" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="466.40" y="196.98" width="5.12" height="5.90" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="471.52" y="196.98" width="5.12" height="5.90" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="461.27" y="202.88" width="5.12" height="5.90" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="466.40" y="202.88" width="5.12" height="5.90" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="471.52" y="202.88" width="5.12" height="5.90" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="461.27" y="208.78" width="7.68" height="5.90" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="468.96" y="208.78" width="7.68" height="5.90" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="461.27" y="208.78" width="7.68" height="5.90" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="468.96" y="208.78" width="7.68" height="5.90" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="460.27" y="195.98" width="17.36" height="19.70" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceAudioIn: 4/8 (50%)</title>
+<g><title>libSceAudioIn: 6/8 (75%)</title>
 <rect x="478.64" y="196.98" width="5.12" height="5.90" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="483.76" y="196.98" width="5.12" height="5.90" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="488.88" y="196.98" width="5.12" height="5.90" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="478.64" y="202.88" width="5.12" height="5.90" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="483.76" y="202.88" width="5.12" height="5.90" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="488.88" y="202.88" width="5.12" height="5.90" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="483.76" y="202.88" width="5.12" height="5.90" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="488.88" y="202.88" width="5.12" height="5.90" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="478.64" y="208.78" width="7.68" height="5.90" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="486.32" y="208.78" width="7.68" height="5.90" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="477.64" y="195.98" width="17.36" height="19.70" fill="none" stroke="#0d1117" stroke-width="2"/>
@@ -3222,15 +3222,15 @@
 <rect x="391.21" y="246.79" width="8.07" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="382.14" y="234.54" width="18.13" height="18.86" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceNpAuth: 5/8 (62%)</title>
+<g><title>libSceNpAuth: 8/8 (100%)</title>
 <rect x="383.14" y="254.41" width="5.38" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="388.52" y="254.41" width="5.38" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="393.89" y="254.41" width="5.38" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="383.14" y="260.03" width="5.38" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="388.52" y="260.03" width="5.38" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="393.89" y="260.03" width="5.38" height="5.62" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="383.14" y="265.65" width="8.07" height="5.62" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="391.21" y="265.65" width="8.07" height="5.62" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="393.89" y="260.03" width="5.38" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="383.14" y="265.65" width="8.07" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="391.21" y="265.65" width="8.07" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="382.14" y="253.41" width="18.13" height="18.86" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
 <g><title>libSceSaveDataDialog: 8/8 (100%)</title>
@@ -3244,15 +3244,15 @@
 <rect x="391.21" y="284.51" width="8.07" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="382.14" y="272.27" width="18.13" height="18.86" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceTextToSpeech2: 1/8 (12%)</title>
+<g><title>libSceTextToSpeech2: 8/8 (100%)</title>
 <rect x="383.14" y="292.14" width="5.38" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="388.52" y="292.14" width="5.38" height="5.62" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="393.89" y="292.14" width="5.38" height="5.62" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="383.14" y="297.76" width="5.38" height="5.62" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="388.52" y="297.76" width="5.38" height="5.62" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="393.89" y="297.76" width="5.38" height="5.62" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="383.14" y="303.38" width="8.07" height="5.62" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="391.21" y="303.38" width="8.07" height="5.62" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="388.52" y="292.14" width="5.38" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="393.89" y="292.14" width="5.38" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="383.14" y="297.76" width="5.38" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="388.52" y="297.76" width="5.38" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="393.89" y="297.76" width="5.38" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="383.14" y="303.38" width="8.07" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="391.21" y="303.38" width="8.07" height="5.62" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="382.14" y="291.14" width="18.13" height="18.86" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
 <g><title>libSceVoiceChat: 8/8 (100%)</title>
@@ -3266,14 +3266,14 @@
 <rect x="410.02" y="227.04" width="8.74" height="5.18" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="400.27" y="215.68" width="19.49" height="17.55" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libReactNative.Modules.Vsh.WebAppLauncher: 0/7 (0%)</title>
-<rect x="401.27" y="234.23" width="4.37" height="6.68" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="405.64" y="234.23" width="4.37" height="6.68" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="410.02" y="234.23" width="4.37" height="6.68" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="414.39" y="234.23" width="4.37" height="6.68" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="401.27" y="240.90" width="5.83" height="6.68" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="407.10" y="240.90" width="5.83" height="6.68" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="412.93" y="240.90" width="5.83" height="6.68" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<g><title>libReactNative.Modules.Vsh.WebAppLauncher: 7/7 (100%)</title>
+<rect x="401.27" y="234.23" width="4.37" height="6.68" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="405.64" y="234.23" width="4.37" height="6.68" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="410.02" y="234.23" width="4.37" height="6.68" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="414.39" y="234.23" width="4.37" height="6.68" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="401.27" y="240.90" width="5.83" height="6.68" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="407.10" y="240.90" width="5.83" height="6.68" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="412.93" y="240.90" width="5.83" height="6.68" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="400.27" y="233.23" width="19.49" height="15.35" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
 <g><title>libSceCdlgG2P: 7/7 (100%)</title>
@@ -3316,14 +3316,14 @@
 <rect x="412.93" y="302.32" width="5.83" height="6.68" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="400.27" y="294.65" width="19.49" height="15.35" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceGameUpdate: 6/7 (86%)</title>
+<g><title>libSceGameUpdate: 7/7 (100%)</title>
 <rect x="420.76" y="216.68" width="4.20" height="6.95" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="424.96" y="216.68" width="4.20" height="6.95" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="429.17" y="216.68" width="4.20" height="6.95" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="433.37" y="216.68" width="4.20" height="6.95" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="420.76" y="223.63" width="5.60" height="6.95" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="426.36" y="223.63" width="5.60" height="6.95" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="431.97" y="223.63" width="5.60" height="6.95" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="431.97" y="223.63" width="5.60" height="6.95" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="419.76" y="215.68" width="18.81" height="15.91" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
 <g><title>libSceLibcInternal: 7/7 (100%)</title>
@@ -3366,14 +3366,14 @@
 <rect x="432.43" y="239.26" width="5.84" height="6.67" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="419.76" y="231.59" width="19.51" height="15.34" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceSigninDialog: 4/7 (57%)</title>
+<g><title>libSceSigninDialog: 7/7 (100%)</title>
 <rect x="440.27" y="232.59" width="4.38" height="6.67" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="444.64" y="232.59" width="4.38" height="6.67" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="449.02" y="232.59" width="4.38" height="6.67" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="453.40" y="232.59" width="4.38" height="6.67" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="440.27" y="239.26" width="5.84" height="6.67" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="446.10" y="239.26" width="5.84" height="6.67" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="451.94" y="239.26" width="5.84" height="6.67" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="440.27" y="239.26" width="5.84" height="6.67" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="446.10" y="239.26" width="5.84" height="6.67" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="451.94" y="239.26" width="5.84" height="6.67" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="439.27" y="231.59" width="19.51" height="15.34" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
 <g><title>libSceSysmodule: 7/7 (100%)</title>
@@ -3413,13 +3413,13 @@
 <rect x="430.27" y="270.58" width="4.76" height="6.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="419.76" y="262.70" width="16.27" height="15.77" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceNetCtlApDialog: 0/6 (0%)</title>
-<rect x="420.76" y="279.46" width="4.76" height="6.88" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="425.52" y="279.46" width="4.76" height="6.88" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="430.27" y="279.46" width="4.76" height="6.88" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="420.76" y="286.35" width="4.76" height="6.88" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="425.52" y="286.35" width="4.76" height="6.88" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="430.27" y="286.35" width="4.76" height="6.88" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<g><title>libSceNetCtlApDialog: 6/6 (100%)</title>
+<rect x="420.76" y="279.46" width="4.76" height="6.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="425.52" y="279.46" width="4.76" height="6.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="430.27" y="279.46" width="4.76" height="6.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="420.76" y="286.35" width="4.76" height="6.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="425.52" y="286.35" width="4.76" height="6.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="430.27" y="286.35" width="4.76" height="6.88" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="419.76" y="278.46" width="16.27" height="15.77" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
 <g><title>libSceOpusDec: 6/6 (100%)</title>
@@ -3481,11 +3481,11 @@
 <rect x="437.03" y="290.59" width="10.70" height="4.94" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="436.03" y="279.71" width="12.70" height="16.83" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libReactNative.Modules.Vsh: 0/4 (0%)</title>
-<rect x="437.03" y="297.54" width="5.35" height="5.73" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="442.38" y="297.54" width="5.35" height="5.73" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="437.03" y="303.27" width="5.35" height="5.73" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="442.38" y="303.27" width="5.35" height="5.73" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<g><title>libReactNative.Modules.Vsh: 4/4 (100%)</title>
+<rect x="437.03" y="297.54" width="5.35" height="5.73" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="442.38" y="297.54" width="5.35" height="5.73" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="437.03" y="303.27" width="5.35" height="5.73" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="442.38" y="303.27" width="5.35" height="5.73" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="436.03" y="296.54" width="12.70" height="13.46" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
 <g><title>libSceGameLiveStreaming: 3/4 (75%)</title>
@@ -3566,9 +3566,9 @@
 <rect x="470.02" y="303.13" width="4.43" height="5.87" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="464.59" y="302.13" width="10.86" height="7.87" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
-<g><title>libSceNpPartner001: 0/2 (0%)</title>
-<rect x="476.45" y="291.32" width="3.89" height="6.75" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
-<rect x="480.34" y="291.32" width="3.89" height="6.75" fill="#6e7681" stroke="#0d1117" stroke-width="0.5"/>
+<g><title>libSceNpPartner001: 2/2 (100%)</title>
+<rect x="476.45" y="291.32" width="3.89" height="6.75" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
+<rect x="480.34" y="291.32" width="3.89" height="6.75" fill="#2ea043" stroke="#0d1117" stroke-width="0.5"/>
 <rect x="475.45" y="290.32" width="9.77" height="8.75" fill="none" stroke="#0d1117" stroke-width="2"/>
 </g>
 <g><title>libSceSharePlay: 2/2 (100%)</title>
