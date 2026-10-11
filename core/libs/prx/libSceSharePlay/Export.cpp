@@ -5,8 +5,9 @@
 
 extern "C" {
 
-int APS5_VABI sceSharePlayInitialize(void* heap, size_t heap_size) {
-    if (heap == nullptr || heap_size == 0) APS5_INVALID_ARG_EX;
+int APS5_VABI sceSharePlayInitialize(void* heap, size_t heapSize) {
+    (void)heap;
+    if (heapSize == 0) APS5_INVALID_ARG_EX;
     return 0;
 }
 

@@ -83,6 +83,8 @@ struct DataMask {
 
 enum class EntryOutcome { Equal, EqualData, Differing, Inaccessible, QueuedLabel, FlushingImage, PublishMoved, PendingMoved, ForgetMoved };
 
+bool CacheableResult(const ShaderRecompiler::RecompileResult& compiled);
+
 }
 
 #endif

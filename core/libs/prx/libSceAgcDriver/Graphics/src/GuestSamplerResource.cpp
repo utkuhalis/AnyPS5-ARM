@@ -54,7 +54,7 @@ float toSignedLodBias(std::uint32_t raw) {
 
 }
 
-GuestSamplerResource DecodeSamplerResource(std::span<const std::uint32_t> words, bool unnormalizedProven) {
+GuestSamplerResource DecodeSamplerResource(std::span<const std::uint32_t> words, bool unnormalizedProven, bool forceDegammaPaired) {
     Require(words.size() == 4, "guest sampler descriptor must contain 4 dwords");
 
     const auto clampX = (words[0] >> 0u) & 0x7u;
@@ -99,7 +99,7 @@ GuestSamplerResource DecodeSamplerResource(std::span<const std::uint32_t> words,
     } else {
         Require(!unnormalizedProven, "guest sampler descriptor is bound as unnormalized without FORCE_UNNORMALIZED");
     }
-    Require(!forceSrgb, "guest sampler descriptor forces sRGB decoding which is not implemented");
+    Require(!forceSrgb || forceDegammaPaired, "guest sampler descriptor forces sRGB decoding which is not implemented");
     // TRUNC_COORD picks point-sampled texels by truncation instead of rounding, and the perf fields
     // trade mip/depth precision for speed; Vulkan's nearest filtering already floors, so these only
     // move texel selection by half a texel at most and are accepted as is. ANISO_THRESHOLD and
@@ -107,12 +107,11 @@ GuestSamplerResource DecodeSamplerResource(std::span<const std::uint32_t> words,
     static_cast<void>(truncCoord);
     static_cast<void>(anisoThreshold);
     static_cast<void>(anisoBias);
-    Require(!disableCubeWrap, "guest sampler descriptor disables seamless cube filtering which is not implemented");
     const auto reductionMode = toVkReductionMode(filterMode);
     Require(!disableDegamma, "guest sampler descriptor disables degamma which is not implemented");
     Require(lodBiasSec == 0, "guest sampler descriptor uses a secondary LOD bias which is not implemented");
     Require(!pointPreclamp, "guest sampler descriptor uses point preclamping which is not implemented");
-    Require(!anisoOverride, "guest sampler descriptor uses an anisotropy override which is not implemented");
+    static_cast<void>(anisoOverride);
     Require(!blendZeroPrt, "guest sampler descriptor uses PRT blend-zero which is not implemented");
     if (mipFilter > 2u) Require(false, "guest sampler descriptor uses an unknown mip filter " + std::to_string(mipFilter));
     Require(mipFilter != 2u || reductionMode == VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE_EXT, "guest sampler descriptor combines a min or max reduction with a linear mip filter, which is not implemented");
@@ -161,6 +160,8 @@ GuestSamplerResource DecodeSamplerResource(std::span<const std::uint32_t> words,
     result.reductionMode = reductionMode;
     const std::array compareOps{VK_COMPARE_OP_NEVER, VK_COMPARE_OP_LESS, VK_COMPARE_OP_EQUAL, VK_COMPARE_OP_LESS_OR_EQUAL, VK_COMPARE_OP_GREATER, VK_COMPARE_OP_NOT_EQUAL, VK_COMPARE_OP_GREATER_OR_EQUAL, VK_COMPARE_OP_ALWAYS};
     result.compareOp = compareOps.at(depthCompareFunc);
+    result.forceDegamma = forceSrgb;
+    result.nonSeamlessCube = disableCubeWrap;
     if (forceUnormCoords) {
         result.unnormalizedCoordinates = true;
         result.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
@@ -171,6 +172,13 @@ GuestSamplerResource DecodeSamplerResource(std::span<const std::uint32_t> words,
         result.maxAnisotropy = 1.0f;
     }
     return result;
+}
+
+std::optional<std::array<std::uint32_t, 4>> SingleLevelSamplerWords(std::span<const std::uint32_t, 4> words, bool singleLevelImage, bool mipmappedImage) {
+    const auto filters = words[2];
+    if (((filters >> 29u) & 1u) == 0 || !singleLevelImage || (!isAnisoFilter((filters >> 20u) & 3u) && !isAnisoFilter((filters >> 22u) & 3u))) return std::nullopt;
+    Require(!mipmappedImage, "guest sampler with ANISO_OVERRIDE is paired with both single-level and mipmapped images in one draw, which is not implemented");
+    return std::array<std::uint32_t, 4>{words[0], words[1], filters & ~((2u << 20u) | (2u << 22u)), words[3]};
 }
 
 }

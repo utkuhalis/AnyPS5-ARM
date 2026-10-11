@@ -9,6 +9,7 @@
 #include "prx/libSceAgcDriver/Execution/include/Recipe.hpp"
 #include "prx/libSceAgcDriver/Graphics/include/Draw.hpp"
 #include "prx/libSceAgcDriver/Graphics/include/Recorder.hpp"
+#include "prx/libc/include/GuestAllocations.hpp"
 #include <functional>
 #include <memory>
 #include <optional>
@@ -35,6 +36,7 @@ public:
     VulkanDevice& operator=(const VulkanDevice&) = delete;
     std::string DeviceName() const;
     ShaderRecompiler::SpirvTarget Target() const;
+    std::optional<ShaderRecompiler::GeometryStageLimits> GeometryLimits() const;
     ShaderRecompiler::SpirvTarget ComputeTarget(std::uint32_t waveSize) const;
     // Distinguishes this device from every earlier one in the process (a memo keyed by the device
     // cannot rely on the pointer, which a replacement may reuse).
@@ -48,6 +50,7 @@ public:
     // three-step form below so the GPU wait happens without the mutex.
     void WaitIdle();
     void PrepareForReplacement();
+    bool ImportGuestMemory(const GuestAllocations::Mapped& ranges, std::uint64_t generation, bool adoptDevice);
     // Sends recorded work to the GPU without waiting for it. With `reapFirst` it first retires batches
     // that already finished, so the in-flight list stays short (APS5_NO_OPPORTUNISTIC_REAP=1 skips
     // that). A reap runs completion actions, and a write-back can wait for a later batch under the
@@ -68,11 +71,9 @@ public:
     // once that work completed; the batch is submitted by the queue worker's flush rules (or at once
     // with APS5_LABEL_SUBMIT_NOW=1). `stamp` is the record-order stamp and `queue` the recording
     // queue for the recorder's pending-label table. Returns 0 when recorded on the GPU, 5 when kept
-    // as a completion action behind pending write-backs and 6 when kept as one because the memory is
-    // not host-imported so the GPU cannot store it (both land when their batch is reaped), else why
-    // the CPU must write it:
+    // as a completion action behind pending write-backs, else why the CPU must write it:
     // 1 nothing recorded (the write is already ordered), 2 write-backs pending and 3 memory not
-    // imported (both only with APS5_DRAIN_COMPLETION_LABELS=1), 4 unsuitable size or alignment.
+    // imported, 4 unsuitable size or alignment.
     // `reapFirst` retires finished batches before the checks; a caller recording a group of labels
     // under one lock passes it for the first label only.
     int WriteLabelOnGpu(std::uint64_t address, std::span<const std::byte> bytes, std::uint64_t stamp, std::uint32_t queue, bool reapFirst = true);
@@ -80,6 +81,8 @@ public:
     // Pending-label table lookup and open-batch overlap test for WAIT_REG_MEM (see Recorder).
     std::optional<Graphics::Recorder::LabelHit> PendingLabel(std::uint64_t address, std::size_t bytes, std::uint64_t afterStamp, Graphics::Recorder::LabelRefusal* refusal = nullptr) const;
     bool OpenWriteOverlaps(std::uint64_t address, std::size_t bytes) const;
+    bool RecordedWritesSettled(std::uint64_t address, std::size_t bytes) const;
+    bool StoresPendingOver(std::uint64_t address, std::size_t bytes) const;
     // Fills [address, address + bytes) of host-imported guest memory with a repeating 16-byte pattern,
     // recorded behind the open batch; false when the range is not imported (the caller stores it).
     // Recorded GPU stores over the range are ordered before the fill by its barrier; finished
@@ -161,9 +164,13 @@ public:
     void* Window() const;
     void Resize(std::uint32_t width, std::uint32_t height);
     bool Presentable() const;
+    bool DualSrcBlend() const;
     bool PrimitiveListRestart() const;
     bool SamplerFilterMinmax() const;
     bool ConservativeRasterization() const;
+    VkShaderStageFlags SubgroupStages() const;
+    bool ProvokingVertexLast() const;
+    bool GraphicsPipelineLibraries() const;
     // A presentation is a few steps so the presenter holds GuestMemory::GpuMutex only while it
     // touches the queue. Presentations are slots (FlipInFlight() + 1, each with its own command
     // buffer, fence, kept resident image and dump buffer): RetirePresents(keep) (no mutex) retires
@@ -218,7 +225,7 @@ public:
     // records. Null when nothing is prepared: the resource cache may serve the dispatch (its
     // Revalidate stays under the mutex), or APS5_LOCKED_BUILD=1 keeps the whole build under it as
     // before. `shader` and `snapshots` must outlive the dispatch.
-    std::shared_ptr<PreparedDispatch> PrepareDispatch(const ShaderRecompiler::RecompileResult& shader, std::span<const Graphics::GuestMemorySnapshot> snapshots);
+    std::shared_ptr<PreparedDispatch> PrepareDispatch(const ShaderRecompiler::RecompileResult& shader, std::span<const Graphics::GuestMemorySnapshot> snapshots, std::uint64_t dispatchThreads = 0);
     // APS5_PROFILE_DRAW: the parts of a PrepareDispatch in milliseconds, in the order key, find,
     // precollect, presync, stage A (the driver's 'prepare:' rows).
     static std::span<const double, 5> PreparePhaseMs(const PreparedDispatch& prepared);
@@ -226,16 +233,6 @@ public:
     // variant (design_cpu_final M4): only when the resource cache served or took the object
     // (reusable, cacheable) and recipes are on (APS5_NO_DISPATCH_RECIPE=1 builds none); else null.
     void Dispatch(const ShaderRecompiler::RecompileResult& shader, std::uint32_t x, std::uint32_t y, std::uint32_t z, std::span<const Graphics::GuestMemorySnapshot> snapshots = {}, std::uint64_t programAddress = 0, std::shared_ptr<PreparedDispatch> prepared = nullptr, std::shared_ptr<const Recipe>* recipe = nullptr);
-    // A dispatch whose group counts are the three dwords at `arguments` in guest memory
-    // (DISPATCH_INDIRECT): the GPU reads them in place from the host import, ordered after everything
-    // recorded before, so the CPU never waits for the shader that wrote them. When the GPU could not
-    // see the current bytes the counts are read on the CPU instead (through the flush hook, as the
-    // driver resolved every indirect dispatch before) and the dispatch is recorded as a direct one:
-    // cpuReason 1 storage-image results were pending over them, 2 a recorded dispatch writes them
-    // through a copied buffer (its CPU write-back lands only when the batch is reaped) or a label
-    // over those dwords is pending, 3 the memory is not host-imported; 0 when recorded GPU-side. argumentReadMs is
-    // what that CPU read (its sync) took. The device limit on group counts is not checked GPU-side.
-    // Debug aid: APS5_NO_GPU_INDIRECT=1 (in the driver) keeps every indirect dispatch on the CPU path.
     struct IndirectOutcome {
         int cpuReason;
         double argumentReadMs;

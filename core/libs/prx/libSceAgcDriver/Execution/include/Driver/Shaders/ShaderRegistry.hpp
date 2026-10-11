@@ -6,18 +6,30 @@
 #include <array>
 #include <optional>
 #include <atomic>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
+#include <functional>
+#include <initializer_list>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
 
+namespace ShaderRecompiler {
+class ShaderPreparationContext;
+}
+
+namespace AgcDriver {
+class VulkanDevice;
+}
+
 namespace AgcDriver::DriverDetail {
 
 struct ShaderSnapshot;
-using ShaderRegistry = std::map<std::uint64_t, std::shared_ptr<const ShaderSnapshot>>;
+using ShaderRegistry = std::map<std::uint64_t, std::vector<std::shared_ptr<const ShaderSnapshot>>>;
 
 struct PreparedShaderState {
     struct Entry {
@@ -46,9 +58,13 @@ struct PreparedShaderState {
     std::vector<RectangleProgress> rectangleProgress;
     std::vector<std::weak_ptr<const ShaderSnapshot>> fragments;
     bool rectangleRequested = false;
+    bool deferred = false;
 };
 struct PreparedShaders : PreparedShaderState {
     std::mutex mutex;
+    std::condition_variable settled;
+    std::exception_ptr failure;
+    bool pending = false;
 };
 
 struct RegisteredShaderState {
@@ -70,14 +86,20 @@ struct ShaderSnapshot {
 
 std::shared_ptr<const ShaderSnapshot> ReadRawComputeShader(std::uint64_t address);
 
+std::shared_ptr<const ShaderRecompiler::SourceHandle> PrepareShaderWithDiagnostics(const ShaderRecompiler::RecompileRequest& request, ShaderRecompiler::ShaderPreparationContext* preparation = nullptr);
+
 std::uint64_t NullPixelProgramAddress();
+ShaderSnapshot PrepareNullPixelProgram(const VulkanDevice& device);
 std::optional<ShaderRecompiler::ShaderFloatMode> RegisteredFloatMode(const ShaderSnapshot& snapshot);
+std::shared_ptr<const ShaderSnapshot> RegisteredProgram(const ShaderRegistry& registry, std::uint64_t address, std::initializer_list<std::uint8_t> types);
 void PublishRegisteredShader(std::shared_ptr<ShaderRegistry>& registry, const std::shared_ptr<const ShaderSnapshot>& snapshot);
+void SubmitRegistrationPreparation(std::function<void()> task);
+void CloseRegistrationPreparation();
 
 void ResolvePreparedGraphics(const ShaderSnapshot& front, const std::shared_ptr<const ShaderSnapshot>& fragment, std::uint32_t primitiveType, const ShaderRecompiler::SpirvTarget& target);
 
 ShaderRecompiler::RectListShaders PreparedRectangle(const ShaderSnapshot& snapshot, std::uint64_t vertexId, std::uint64_t fragmentId);
-std::optional<ShaderRecompiler::RectListShaders> FindPreparedRectangle(const ShaderSnapshot& snapshot, std::uint64_t vertexId, std::uint64_t fragmentId);
+ShaderRecompiler::RectListShaders DrawRectangle(const ShaderSnapshot& front, const std::shared_ptr<const ShaderSnapshot>& fragment, std::uint64_t vertexId, std::uint64_t fragmentId, const ShaderRecompiler::SpirvTarget& target);
 
 std::shared_ptr<const ShaderRecompiler::SourceHandle> SourceHandleFor(const ShaderSnapshot& snapshot, std::size_t codeOffset, const ShaderRecompiler::RecompileRequest& request);
 ShaderRecompiler::PreparedShaderInvocation InvocationFor(const ShaderSnapshot& snapshot, std::size_t codeOffset, const ShaderRecompiler::RecompileRequest& request);

@@ -41,6 +41,8 @@ struct ResourceSnapshot {
     std::vector<std::uint32_t> flattenedSrt;
     std::vector<std::uint32_t> userData;
     UniformFill uniformFill;
+    std::vector<SrtReadPoison> srtPoison;
+    std::uint32_t nullRootReads = 0;
 };
 
 struct UniformFillPlan {
@@ -48,7 +50,8 @@ struct UniformFillPlan {
     std::array<IrValue*, 4> values{};
 };
 
-inline constexpr std::uint32_t NativePushConstantSize = sizeof(PushData);
+inline constexpr std::uint32_t NativePushSlotSize = sizeof(PushData);
+inline constexpr std::uint32_t NativePushConstantSize = 2u * NativePushSlotSize;
 
 struct IrResourcePlan {
     IrShaderStage stage = IrShaderStage::Unknown;
@@ -63,6 +66,8 @@ struct IrResourcePlan {
     std::vector<ResourceBlock> controlFlow;
     std::vector<std::uint32_t> materializationSources;
     std::vector<SrtRead> srtReads;
+    std::vector<std::uint32_t> guardedSrtSlots;
+    std::uint32_t srtGuardOffset = 0;
     std::vector<std::uint8_t> cleanFlatSlots;
     // One byte per srtReads slot, 1 when the CPU walk never consumes the slot's value (see
     // Detail::ComputePureFlatSlots): a driver may reuse a capture whose words differ only there.

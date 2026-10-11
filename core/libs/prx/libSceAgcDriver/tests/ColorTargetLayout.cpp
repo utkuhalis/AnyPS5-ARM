@@ -1,11 +1,14 @@
 #include "BdaTests.hpp"
 #include "prx/libSceAgcDriver/Graphics/include/ColorTargetTransfer.hpp"
 #include "prx/libSceAgcDriver/Graphics/include/TextureTiling.hpp"
+#include "prx/libSceAgcDriver/Graphics/include/TextureSwizzleEquations.hpp"
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstdint>
 #include <cstring>
 #include <span>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -24,10 +27,20 @@ void reject(TAction action) {
 void RunColorTargetLayoutTests() {
     Require(DecodeColorTileMode(0x4dc6c000) == ColorTileMode::RenderTarget, "logged color descriptor was rejected");
     Require(DecodeColorTileMode(0x09000000) == ColorTileMode::Linear, "linear descriptor changed");
-    reject([] { DecodeColorTileMode(0x4dc6c001); });
+    Require(DecodeColorTileMode(0x4dc6c001) == ColorTileMode::RenderTarget, "2D array color descriptor with MIP0_DEPTH 1 was rejected");
     reject([] { DecodeColorTileMode(0x4dc6e000); });
     reject([] { DecodeColorTileMode(0xcdc6c000); });
     reject([] { DecodeColorTileMode(0x09004000); });
+    Require(DecodeColorTileMode(0x4cc6c000) == ColorTileMode::RenderTarget, "1D color descriptor was rejected");
+    reject([] { DecodeColorTileMode(0x4cc6c001); });
+    reject([] { DecodeColorTileMode(0x4fc6c000); });
+    Require(DecodeColorTileMode(0x08000000) == ColorTileMode::Linear, "linear 1D color descriptor was rejected");
+    reject([] { DecodeColorTileMode(0x08014000); });
+    reject([] { DecodeColorTileMode(0x08024000); });
+    Require(DecodeColorTileMode(0x0da58000) == ColorTileMode::D4KBX, "a SW_4KB_D_X color descriptor with its Z-mode FMASK swizzle was rejected");
+    Require(DecodeColorTileMode(0x0da54000) == ColorTileMode::S4KBX, "a SW_4KB_S_X color descriptor with its Z-mode FMASK swizzle was rejected");
+    Require(DecodeColorTileMode(0x09058000) == ColorTileMode::D4KBX, "a SW_4KB_D_X color descriptor without an FMASK swizzle was rejected");
+    reject([] { DecodeColorTileMode(0x0d458000); });
     reject([] { ColorTargetLayout(0, 1, ColorTileMode::RenderTarget); });
     const ColorTargetLayout padded(63, 2, ColorTileMode::Linear);
     Require(padded.Bytes() == 512 && padded.LinearBytes() == 504 && padded.Offset(0, 1) == 256, "linear rows are not padded to 256 bytes");
@@ -71,6 +84,33 @@ void RunColorTargetLayoutTests() {
     }
     Require(DecodeColorTileMode(0x4dc24000) == ColorTileMode::Standard64KB, "64 KiB standard color descriptor was rejected");
     reject([&] { layout.Offset(257, 0); });
+    Require(CmaskLayout(1, 1).Bytes() == 4096 && CmaskLayout(1024, 512).Bytes() == 4096 && CmaskLayout(1025, 513).Bytes() == 16384 && CmaskLayout(1920, 1080).Bytes() == 24576 && CmaskLayout(2432, 1368).Bytes() == 36864 && CmaskLayout(3328, 1872).Bytes() == 65536 && CmaskLayout(3840, 2160).Bytes() == 81920, "CMASK size differs from addrlib's pipe-aligned SW_64KB_Z_X CMASK");
+    struct CmaskReference {
+        std::uint32_t width;
+        std::uint32_t height;
+        std::uint32_t tileX;
+        std::uint32_t tileY;
+        std::size_t nibble;
+    };
+    constexpr std::array<CmaskReference, 10> cmaskReferences{{
+        {20, 12, 2, 1, 0x600u}, {61, 13, 7, 1, 0x1401u}, {61, 13, 5, 0, 0x1201u}, {1920, 1080, 239, 134, 0xb347u}, {1920, 1080, 128, 64, 0x6000u},
+        {1920, 1080, 1, 1, 0x1u}, {3840, 2160, 479, 269, 0x2651du}, {3840, 2160, 200, 77, 0xb30cu}, {2432, 1368, 303, 170, 0x10acfu}, {1025, 513, 128, 64, 0x6000u},
+    }};
+    for (const auto& reference : cmaskReferences) Require(CmaskLayout(reference.width, reference.height).Nibble(reference.tileX, reference.tileY) == reference.nibble, "CMASK nibble address differs from addrlib's");
+    for (const auto [width, height] : {std::pair{61u, 13u}, std::pair{1920u, 1080u}}) {
+        const CmaskLayout cmask(width, height);
+        std::vector<bool> seen(cmask.Bytes() * 2u);
+        for (std::uint32_t tileY = 0; tileY < cmask.TilesY(); ++tileY) {
+            for (std::uint32_t tileX = 0; tileX < cmask.TilesX(); ++tileX) {
+                const auto nibble = cmask.Nibble(tileX, tileY);
+                Require(nibble < seen.size() && !seen[nibble], "CMASK tiles alias or leave the CMASK");
+                seen[nibble] = true;
+            }
+        }
+    }
+    reject([] { CmaskLayout(0, 1); });
+    reject([] { CmaskLayout(61, 13).Nibble(8, 0); });
+    reject([] { CmaskLayout(61, 13).Nibble(0, 2); });
     std::vector<std::byte> tiled(layout.Bytes(), std::byte{0x5a});
     std::vector<std::byte> linear(layout.LinearBytes());
     std::vector<std::byte> restored(linear.size());
@@ -111,4 +151,54 @@ void RunColorTargetLayoutTests() {
     std::array<std::byte, 512> linearReadback{};
     ReadColorTarget(target, linearReadback);
     Require(linearReadback == linearPixels && guest[512] == std::byte{0x6b}, "linear guest color transfer changed");
+
+    const ColorTargetLayout plainLayout(256, 70, ColorTileMode::RenderTarget, 4);
+    const ColorTargetLayout xorLayout(256, 70, ColorTileMode::RenderTarget, 4, 0x5600);
+    for (const auto& [x, y] : {std::pair{0u, 0u}, std::pair{1u, 0u}, std::pair{0u, 1u}, std::pair{127u, 69u}, std::pair{128u, 0u}, std::pair{255u, 69u}, std::pair{200u, 33u}}) {
+        const auto plain = plainLayout.Offset(x, y);
+        Require(xorLayout.Offset(x, y) == (plain & ~std::size_t{0xffff}) + ((plain & 0xffffu) ^ 0x5600u), "a pipe/bank XOR did not apply to the offset inside the SW_64KB_R_X block");
+    }
+    std::vector<std::byte> xorLinear(xorLayout.LinearBytes());
+    for (std::size_t i = 0; i < xorLinear.size(); ++i) xorLinear[i] = static_cast<std::byte>((i * 7u) & 255u);
+    std::vector<std::byte> xorTiled(xorLayout.Bytes(), std::byte{0});
+    std::vector<std::byte> xorRestored(xorLinear.size());
+    xorLayout.Tile(xorLinear, xorTiled);
+    xorLayout.Detile(xorTiled, xorRestored);
+    Require(xorRestored == xorLinear, "color tiling round trip with a pipe/bank XOR lost pixels");
+    reject([] { static_cast<void>(ColorTargetLayout(64, 64, ColorTileMode::Standard64KB, 4, 0x100)); });
+    reject([] { static_cast<void>(ColorTargetLayout(64, 64, ColorTileMode::Linear, 4, 0x100)); });
+    reject([] { static_cast<void>(ColorTargetLayout(64, 64, ColorTileMode::RenderTarget, 4, 0x80)); });
+    reject([] { static_cast<void>(ColorTargetLayout(64, 64, ColorTileMode::RenderTarget, 4, 0x10000)); });
+
+    std::fill(guest.begin(), guest.end(), std::byte{0x6b});
+    target = {reinterpret_cast<std::uintptr_t>(guest.data()), {2, 2}, VK_FORMAT_R8G8B8A8_UNORM, guest.size(), 0xe4, ColorTileMode::RenderTarget};
+    target.pipeBankXor = 0x3200;
+    WriteColorTarget(target, pixels);
+    Require(guest[0x3200] == std::byte{0x32} && guest[0x3210] == std::byte{0x32} && guest[0] == std::byte{0x6b} && guest[16] == std::byte{0x6b}, "a color target with a pipe/bank XOR was written at the unswizzled offsets");
+    readback.fill(std::byte{0});
+    ReadColorTarget(target, readback);
+    Require(readback == pixels, "guest color transfer round trip with a pipe/bank XOR failed");
+
+    for (const auto mode : {ColorTileMode::S4KBX, ColorTileMode::D4KBX}) {
+        const auto* equation = FindTextureSwizzleEquation(static_cast<std::uint32_t>(mode), 4u);
+        Require(equation != nullptr, "the 4 KiB XOR equation is missing");
+        const auto expected = [&](std::uint32_t x, std::uint32_t y) {
+            std::size_t offset = 0;
+            for (std::uint32_t bit = 0; bit < 16u; ++bit) offset |= static_cast<std::size_t>(std::popcount((x & equation->bits[bit] & 0xfffu) ^ ((y << 12u) & equation->bits[bit] & 0xfff000u)) & 1) << bit;
+            return offset;
+        };
+        const ColorTargetLayout xor4Kb(40, 20, mode, 4, 0xa00);
+        Require(xor4Kb.Alignment() == 4096u && xor4Kb.Bytes() == 64u * 32u * 4u && xor4Kb.BlocksPerRow() == 2u, "the 4 KiB XOR color layout has the wrong block geometry");
+        for (const auto& [x, y] : {std::pair{0u, 0u}, std::pair{1u, 0u}, std::pair{0u, 1u}, std::pair{31u, 19u}, std::pair{32u, 0u}, std::pair{39u, 19u}}) {
+            Require(xor4Kb.Offset(x, y) == (x / 32u) * 4096u + (expected(x % 32u, y) ^ 0xa00u), "a 4 KiB XOR color offset does not follow its swizzle equation and pipe/bank XOR");
+        }
+        std::vector<std::byte> source(xor4Kb.LinearBytes());
+        for (std::size_t i = 0; i < source.size(); ++i) source[i] = static_cast<std::byte>((i * 13u) & 255u);
+        std::vector<std::byte> tiled4Kb(xor4Kb.Bytes(), std::byte{0});
+        std::vector<std::byte> back(source.size());
+        xor4Kb.Tile(source, tiled4Kb);
+        xor4Kb.Detile(tiled4Kb, back);
+        Require(back == source, "4 KiB XOR color tiling round trip lost pixels");
+        reject([mode] { static_cast<void>(ColorTargetLayout(40, 20, mode, 4, 0x1000)); });
+    }
 }

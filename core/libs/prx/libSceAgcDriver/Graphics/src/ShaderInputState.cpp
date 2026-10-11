@@ -5,6 +5,7 @@
 #include "prx/libSceAgcDriver/Execution/include/GuestMemory.hpp"
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -38,18 +39,18 @@ std::uint32_t read(const Registers& registers, std::uint32_t offset, RegisterBan
     return it->second;
 }
 
-template <typename T> T _readHeaderPod(std::span<const std::byte> header, std::uint64_t headerAddress, const void* pointer) {
+template <typename T> T _readHeaderPod(std::span<const std::byte> header, std::uint64_t headerAddress, const void* pointer, std::size_t bytes = sizeof(T)) {
     if (pointer == nullptr) throw std::runtime_error("AGC graphics: null AGC header pointer");
     const auto address = reinterpret_cast<std::uint64_t>(pointer);
-    T value;
+    T value{};
     // A header the title copied can keep pointing at the tables of the original one, in guest memory.
-    if (address < headerAddress || address - headerAddress + sizeof(T) > header.size()) {
-        AgcDriver::GuestMemory::CheckRange(pointer, sizeof(T), 1);
-        std::memcpy(&value, pointer, sizeof(T));
+    if (address < headerAddress || address - headerAddress > header.size() || bytes > header.size() - (address - headerAddress)) {
+        AgcDriver::GuestMemory::CheckRange(pointer, bytes, 1);
+        std::memcpy(&value, pointer, bytes);
         return value;
     }
     const auto offset = address - headerAddress;
-    std::memcpy(&value, header.data() + offset, sizeof(T));
+    std::memcpy(&value, header.data() + offset, bytes);
     return value;
 }
 
@@ -113,7 +114,7 @@ ShaderRecompiler::ShaderPixelStageInfo DecodePixelStageInfo(const Registers& con
     constexpr std::uint32_t knownMask = PixelInputBit(PixelInput::PerspectiveSample) | PixelInputBit(PixelInput::PerspectiveCenter) | PixelInputBit(PixelInput::PerspectiveCentroid) |
         PixelInputBit(PixelInput::LinearSample) | PixelInputBit(PixelInput::LinearCenter) | PixelInputBit(PixelInput::LinearCentroid) |
         PixelInputBit(PixelInput::PositionX) | PixelInputBit(PixelInput::PositionY) | PixelInputBit(PixelInput::PositionZ) | PixelInputBit(PixelInput::PositionW) |
-        PixelInputBit(PixelInput::FrontFace) | PixelInputBit(PixelInput::Ancillary);
+        PixelInputBit(PixelInput::FrontFace) | PixelInputBit(PixelInput::Ancillary) | PixelInputBit(PixelInput::LineStipple) | PixelInputBit(PixelInput::PositionFixedPoint);
     if ((activeInputs & ~knownMask) != 0) {
         char message[128];
         std::snprintf(message, sizeof(message), "AGC graphics: unsupported SPI_PS_INPUT_ENA/ADDR bit combination (ena 0x%x addr 0x%x)", ena, addr);
@@ -164,7 +165,7 @@ ShaderRecompiler::ShaderPixelStageInfo DecodePixelStageInfo(const Registers& con
         .conservativeZExport = static_cast<ShaderRecompiler::ConservativeZExport>(conservativeZExport),
         .orderedPixelShader = ((shaderControl >> 16u) & 0x1u) != 0,
         .targetOutputMode = targetOutputMode,
-        .targetExportMapping = exportMappings
+        .targetExportMapping = nullProgram ? std::array<std::uint8_t, 8>{} : exportMappings
     };
 }
 
@@ -175,7 +176,8 @@ ShaderRecompiler::ShaderVertexStageInfo DecodeVertexStageInfo(std::span<const st
     ShaderRecompiler::ShaderVertexStageInfo info{};
     // Without a user-data header the shader binds no direct resources, so it fetches no vertices.
     if (shader.user_data == nullptr) return info;
-    const auto userDataHeader = _readHeaderPod<ShaderUserData>(header, headerAddress, shader.user_data);
+    constexpr auto userDataBytes = offsetof(ShaderUserData, sharp_resource_count) + sizeof(ShaderUserData{}.sharp_resource_count);
+    const auto userDataHeader = _readHeaderPod<ShaderUserData>(header, headerAddress, shader.user_data, userDataBytes);
     if (userDataHeader.direct_resource_count > ShaderRegs::AGC_DIRECT_RESOURCE_TYPE_COUNT) throw std::runtime_error("AGC graphics: AGC direct-resource count exceeds the known resource domain");
     std::array<std::uint16_t, ShaderRegs::AGC_DIRECT_RESOURCE_TYPE_COUNT> directOffsets{};
     directOffsets.fill(ShaderRegs::AGC_ILLEGAL_DIRECT_OFFSET);

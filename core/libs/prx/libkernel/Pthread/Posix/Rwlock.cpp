@@ -46,6 +46,14 @@ int APS5_VABI pthread_rwlock_init_nid_postfix(PthreadRwlock* rwlock, const Pthre
     return toPosix(scePthreadRwlockInit(rwlock, attr, nullptr));
 }
 
+int APS5_VABI pthread_rwlockattr_destroy_nid_postfix(PthreadRwlockattr* attr) {
+    return toPosix(scePthreadRwlockattrDestroy(attr));
+}
+
+int APS5_VABI pthread_rwlockattr_init_nid_postfix(PthreadRwlockattr* attr) {
+    return toPosix(scePthreadRwlockattrInit(attr));
+}
+
 int APS5_VABI pthread_rwlock_rdlock_nid_postfix(PthreadRwlock* rwlock) {
     initializeStatic(rwlock, __func__);
     return toPosix(scePthreadRwlockRdlock(rwlock));

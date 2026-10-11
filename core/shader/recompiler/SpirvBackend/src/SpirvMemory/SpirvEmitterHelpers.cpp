@@ -82,6 +82,7 @@ std::uint32_t BuiltInForInput(StageInputKind kind) {
 std::uint32_t PerVertexType(SpirvEmitterState& state) {
     return state.module.DecoratedType(spv::OpTypeStruct,
         {{spv::OpMemberDecorate, {0u, spv::DecorationBuiltIn, spv::BuiltInPosition}},
+         {spv::OpMemberDecorate, {0u, spv::DecorationInvariant}},
          {spv::OpDecorate, {spv::DecorationBlock}}},
         TypeF32Vector(state, 4u));
 }
@@ -119,7 +120,7 @@ std::uint32_t PushConstantArrayType(SpirvEmitterState& state) {
 
 std::uint32_t PushConstantBlockType(SpirvEmitterState& state) {
     return state.module.DecoratedType(spv::OpTypeStruct,
-        {{spv::OpMemberDecorate, {0u, spv::DecorationOffset, 0u}},
+        {{spv::OpMemberDecorate, {0u, spv::DecorationOffset, state.program.Metadata().bindings.PushSlotDword() * 4u}},
          {spv::OpDecorate, {spv::DecorationBlock}}},
         PushConstantArrayType(state));
 }
@@ -171,7 +172,25 @@ void DefineInputs(SpirvEmitterState& state) {
             addBuiltin(StageInputKind::WorkgroupId, 3u, "gl_WorkGroupID");
         }
     }
+    if (LdsInDeviceMemory(state)) {
+        if (std::none_of(state.inputs.begin(), state.inputs.end(), [](const SpirvInputBinding& input) {
+            return input.kind == StageInputKind::WorkgroupId;
+        })) {
+            state.inputs.push_back(SpirvInputBinding {{StageInputKind::WorkgroupId, 0u, 3u, "gl_WorkGroupID", false}});
+        }
+        state.numWorkgroupsVariable = DefineInterfaceVariable(state, TypeU32Vector(state, 3u), spv::StorageClassInput, "gl_NumWorkGroups");
+        state.module.AddAnnotation(spv::OpDecorate, state.numWorkgroupsVariable, spv::DecorationBuiltIn, spv::BuiltInNumWorkgroups);
+    }
     const bool pixelStage = state.program.Resources().stage == IrShaderStage::Pixel;
+    const bool emulated = pixelStage && state.program.Metadata().barycentricEmulation;
+    BarycentricEmulationLayout emulation;
+    if (emulated) {
+        const auto parameters = DescribeFragmentParameters(state.program, state.inputInfo);
+        const auto reads = [&](StageInputKind kind) {
+            return std::any_of(state.inputs.begin(), state.inputs.end(), [&](const SpirvInputBinding& input) { return input.kind == kind; });
+        };
+        emulation = LayoutBarycentricEmulation(parameters, {true, reads(StageInputKind::BaryCoordSmooth), reads(StageInputKind::BaryCoordNoPerspective)});
+    }
     for (auto& input : state.inputs) {
         if (pixelStage && input.kind == StageInputKind::Parameter) {
             const auto location = PixelParameterLocation(state, input.location);
@@ -235,7 +254,15 @@ void DefineInputs(SpirvEmitterState& state) {
         }
         if (input.kind == StageInputKind::Parameter) {
             const auto flat = PixelParameterIsFlat(state, input.location);
-            if (input.perVertex) {
+            auto location = PixelParameterLocation(state, input.location);
+            if (input.perVertex && emulated) {
+                const auto relocated = std::find_if(emulation.perVertexLocations.begin(), emulation.perVertexLocations.end(), [&](const auto& entry) { return entry.first == location; });
+                if (relocated == emulation.perVertexLocations.end()) {
+                    throw std::runtime_error("SPIR-V module emission failed: per-vertex parameter " + std::to_string(location) + " has no emulated location");
+                }
+                location = relocated->second;
+                state.module.AddAnnotation(spv::OpDecorate, input.variableId, spv::DecorationFlat);
+            } else if (input.perVertex) {
                 state.module.AddAnnotation(spv::OpDecorate, input.variableId, spv::DecorationPerVertexKHR);
             } else if (flat) {
                 state.module.AddAnnotation(spv::OpDecorate, input.variableId, spv::DecorationFlat);
@@ -243,7 +270,13 @@ void DefineInputs(SpirvEmitterState& state) {
             if (!flat && !input.perVertex && PixelParameterIsLinear(state, input.location)) {
                 state.module.AddAnnotation(spv::OpDecorate, input.variableId, spv::DecorationNoPerspective);
             }
-            state.module.AddAnnotation(spv::OpDecorate, input.variableId, spv::DecorationLocation, PixelParameterLocation(state, input.location));
+            state.module.AddAnnotation(spv::OpDecorate, input.variableId, spv::DecorationLocation, location);
+        } else if (emulated && (input.kind == StageInputKind::BaryCoordSmooth || input.kind == StageInputKind::BaryCoordNoPerspective)) {
+            const bool linear = input.kind == StageInputKind::BaryCoordNoPerspective;
+            if (linear) {
+                state.module.AddAnnotation(spv::OpDecorate, input.variableId, spv::DecorationNoPerspective);
+            }
+            state.module.AddAnnotation(spv::OpDecorate, input.variableId, spv::DecorationLocation, linear ? emulation.linearLocation : emulation.smoothLocation);
         } else if (const auto builtin = BuiltInForInput(input.kind); builtin != NoBuiltIn) {
             state.module.AddAnnotation(spv::OpDecorate, input.variableId, spv::DecorationBuiltIn, builtin);
         }
@@ -394,6 +427,13 @@ void DefineDescriptors(SpirvEmitterState& state) {
             break;
         }
         }
+    }
+    if (LdsInDeviceMemory(state)) {
+        state.ldsBufferVariable = state.module.DefineGlobalVariable(TypePointer(state, spv::StorageClassStorageBuffer, StorageBufferBlockType(state)), spv::StorageClassStorageBuffer);
+        state.module.AddName(state.ldsBufferVariable, "workgroup_memory");
+        state.module.AddAnnotation(spv::OpDecorate, state.ldsBufferVariable, spv::DecorationDescriptorSet, WorkgroupMemoryDescriptorSet);
+        state.module.AddAnnotation(spv::OpDecorate, state.ldsBufferVariable, spv::DecorationBinding, 0u);
+        state.module.AddAnnotation(spv::OpDecorate, state.ldsBufferVariable, spv::DecorationCoherent);
     }
 }
 

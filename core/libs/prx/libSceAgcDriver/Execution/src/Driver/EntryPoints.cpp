@@ -1,3 +1,4 @@
+#include "prx/libSceAgcDriver/Execution/include/ThreadPriority.hpp"
 #include "prx/libSceAgcDriver/Execution/include/Driver/Driver.hpp"
 #include <mutex>
 
@@ -33,6 +34,10 @@ void UnregisterVideoOutput(std::uint32_t handle, const std::shared_ptr<IVideoOut
     DriverDetail::Driver::Get().UnregisterVideoOutput(handle, output);
 }
 
+void AttachWindow(const PresentationWindow& window) {
+    DriverDetail::Driver::Get().AttachWindow(window);
+}
+
 void PresentClear(const PresentationWindow& window, bool opaque, void (*gpuReady)(void*), void* context) {
     DriverDetail::Driver::Get().Present(window, nullptr, opaque, gpuReady, context);
 }
@@ -49,6 +54,10 @@ void ReportFailure(std::exception_ptr error) {
     DriverDetail::Driver::Get().ReportFailure(error);
 }
 
+}
+
+extern "C" void AgcDriverRaiseWorkerThreadPriority_nid_postfix(const char* role) {
+    AgcDriver::RaiseWorkerThreadPriority(role);
 }
 
 extern "C" void AgcDriverWaitIdle_nid_postfix() try {
@@ -92,6 +101,10 @@ extern "C" void AgcDriverRegisterVideoOutput_nid_postfix(std::uint32_t handle, c
 
 extern "C" void AgcDriverUnregisterVideoOutput_nid_postfix(std::uint32_t handle, const std::shared_ptr<AgcDriver::IVideoOutput>& output) {
     AgcDriver::UnregisterVideoOutput(handle, output);
+}
+
+extern "C" void AgcDriverAttachWindow_nid_postfix(const AgcDriver::PresentationWindow& window) {
+    AgcDriver::AttachWindow(window);
 }
 
 extern "C" void AgcDriverPresentClear_nid_postfix(const AgcDriver::PresentationWindow& window, bool opaque, void (*gpuReady)(void*), void* context) {

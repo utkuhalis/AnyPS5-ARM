@@ -23,7 +23,7 @@ Requirements:
 ## Run
 
 ```sh
-build-mac/core/relinker/relinker --macos --to-intel source/eboot.bin out/eboot
+build-mac/core/relinker/relinker --macos --to-rosetta source/eboot.bin out/eboot
 python3 tools/package_macos_app.py --relinked out --game source --libs build-mac/core/libs/libs --vulkan ~/VulkanSDK/<version>/macOS Title.app
 ```
 
@@ -37,7 +37,7 @@ Measured on an M3 Pro with macOS 26.6, Vulkan SDK 1.4.363.0 and MoltenVK:
 | `macos_fixtures`: argv, imports, TLS, C++ exceptions, C cleanup, threads, modules, TLS across modules, `--to-intel` | 10/10 run under Rosetta |
 | Breakout guest (video out, pad, audio out), relinked and packaged as `.app` | runs at about 60 fps |
 | ctest, full suite on MoltenVK | 477 of 484 pass |
-| Dreaming Sarah (PPSA02929), relinked with `--macos --to-intel`, packaged as `.app` and opened from Finder | runs the animated main menu at 60 fps (about 18 fps before the write watch) |
+| Dreaming Sarah (PPSA02929), relinked with `--macos --to-rosetta`, packaged as `.app` and opened from Finder | runs the animated main menu at 60 fps (about 18 fps before the write watch) |
 
 The 7 tests that still fail:
 

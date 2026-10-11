@@ -4,6 +4,7 @@
 #include <atomic>
 #include <array>
 #include <exception>
+#include <future>
 #include <thread>
 #include <cstddef>
 #include <typeinfo>
@@ -105,9 +106,61 @@ static void testExceptionPointer() {
     if (std::current_exception()) throw std::runtime_error("stale current exception");
 }
 
+static void testFutureException() {
+    std::atomic<int> count{0};
+    {
+        std::promise<void> promise;
+        auto future = promise.get_future();
+        try {
+            throw TrackedError(&count);
+        } catch (const TrackedError&) {
+            promise.set_exception(std::current_exception());
+        }
+        try {
+            future.get();
+            throw std::runtime_error("future did not rethrow");
+        } catch (const TrackedError& error) {
+            if (std::strcmp(error.what(), "retained error")) throw std::runtime_error("future rethrew another error");
+        }
+    }
+    if (count != 1) throw std::runtime_error("future result destroyed its exception an incorrect number of times");
+}
+
+static void testMadeExceptionPointer() {
+    std::atomic<int> count{0};
+    {
+        auto made = std::make_exception_ptr(TrackedError(&count));
+        try {
+            std::rethrow_exception(made);
+        } catch (const TrackedError& error) {
+            if (std::strcmp(error.what(), "retained error")) throw std::runtime_error("made exception lost its message");
+        }
+    }
+    if (count != 2) throw std::runtime_error("made exception destroyed an incorrect number of times");
+}
+
+struct UnwindProbe {
+    int& seen;
+    ~UnwindProbe() { seen = std::uncaught_exceptions(); }
+};
+
+static void testUncaughtExceptions() {
+    if (std::uncaught_exceptions() != 0) throw std::runtime_error("uncaught exception outside unwinding");
+    int seen = -1;
+    try {
+        UnwindProbe probe{seen};
+        throw std::runtime_error("probe");
+    } catch (const std::runtime_error&) {
+    }
+    if (seen != 1) throw std::runtime_error("unwinding did not count its exception");
+}
+
 int main() {
     TestTypeInfoVtables();
     testExceptionPointer();
+    testFutureException();
+    testMadeExceptionPointer();
+    testUncaughtExceptions();
     try {
         Rethrow();
         return 1;

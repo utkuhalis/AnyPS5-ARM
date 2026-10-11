@@ -2,6 +2,8 @@
 #include "execution/VulkanTestDevice.hpp"
 #include "prx/libSceAgcDriver/Execution/include/QueueState.hpp"
 #include "prx/libSceAgcDriver/Execution/include/Driver/Shaders/ShaderRegistry.hpp"
+#include "prx/libSceAgcDriver/Execution/include/Driver/Synchronization/SynchronizationStatistics.hpp"
+#include "prx/libc/include/GuestHeap.hpp"
 #include "prx/libc/include/Shutdown.hpp"
 #include "prx/libSceAgcDriver/Submit/include/Dcb.hpp"
 #include "prx/libSceAgcDriver/Submit/include/Acb.hpp"
@@ -440,6 +442,34 @@ void testMultiSubmissions() {
     }
 }
 
+std::array<std::uint32_t, 7> memoryCopy(const void* destination, const void* source, std::uint32_t bytes) {
+    const auto from = reinterpret_cast<std::uintptr_t>(source), to = reinterpret_cast<std::uintptr_t>(destination);
+    return {0xc0055000, 0x60000000, static_cast<std::uint32_t>(from), static_cast<std::uint32_t>(static_cast<std::uint64_t>(from) >> 32u), static_cast<std::uint32_t>(to), static_cast<std::uint32_t>(static_cast<std::uint64_t>(to) >> 32u), bytes};
+}
+
+void testCopyIntoHostMemory() {
+    constexpr std::size_t words = 32768;
+    constexpr auto bytes = static_cast<std::uint32_t>(words * 4);
+    auto* produced = static_cast<std::uint32_t*>(GuestHeap::GuestHeapAlign_nid_postfix(65536, bytes));
+    auto* source = static_cast<std::uint32_t*>(GuestHeap::GuestHeapAlign_nid_postfix(65536, bytes));
+    std::vector<std::uint32_t> destination(words);
+    for (const bool label : {false, true}) {
+        for (std::size_t i = 0; i < words; ++i) {
+            produced[i] = 0xa5000000u | static_cast<std::uint32_t>(i);
+            source[i] = 0x5b000000u | static_cast<std::uint32_t>(i);
+        }
+        std::fill(destination.begin(), destination.end(), 0u);
+        const auto copiesBefore = AgcDriver::DriverDetail::copiesToHostMemory.load();
+        if (label) submit(0, commands(memoryCopy(source, produced, bytes), writeData(destination.data(), 0x1abe1u), memoryCopy(destination.data(), source, bytes)));
+        else submit(0, commands(memoryCopy(source, produced, bytes), memoryCopy(destination.data(), source, bytes)));
+        AgcDriverWaitIdle_nid_postfix();
+        check(std::equal(destination.begin(), destination.end(), produced), label ? "a copy into host memory behind a label into its destination lost bytes" : "a copy into host memory did not see the GPU copy into its source");
+        check(AgcDriver::DriverDetail::copiesToHostMemory.load() == copiesBefore + 1, "a copy into host memory drained instead of syncing its source");
+    }
+    GuestHeap::GuestHeapFree_nid_postfix(source);
+    GuestHeap::GuestHeapFree_nid_postfix(produced);
+}
+
 void testShaderHeaderAlignment() {
     alignas(256) static const std::array<std::uint32_t, 64> code{0xbf810000};
     struct Header {
@@ -479,6 +509,25 @@ void testShaderHeaderAlignment() {
     Shader truncated = shader;
     truncated.header_size = sizeof(Shader) - 4;
     refused(expectFailure([&] { AgcDriverRegisterShader_nid_postfix(at(4, truncated)); }), "smaller than its fixed fields");
+}
+
+void testHeaderWithoutProgramAddress() {
+    alignas(256) static const std::array<std::uint32_t, 64> code{0xbf810000};
+    struct Header {
+        Shader shader{};
+        std::array<ShaderRegister, 3> registers{};
+    };
+    alignas(8) static Header header{};
+    header.shader.file_header = 0x34333231;
+    header.shader.version = 0x18;
+    header.shader.header_size = sizeof(Header);
+    header.shader.shader_size = sizeof(code);
+    header.shader.code = code.data();
+    header.shader.type = 4;
+    header.registers = {{{0x08a, 0x60000002}, {0x08b, 0x00030008}, {0x0ca, 0x03000002}}};
+    header.shader.sh_registers = header.registers.data();
+    header.shader.num_sh_registers = header.registers.size();
+    AgcDriverRegisterShader_nid_postfix(&header.shader);
 }
 
 void testRegisteredFloatMode() {
@@ -577,6 +626,13 @@ int main() {
             "raw compute cache eviction lost snapshot lifetime or exceeded its entry limit");
         check(!expectFailure([&] { AgcDriver::DriverDetail::ReadRawComputeShader(rawAddress + 4); }).empty(), "raw compute accepted a misaligned entry");
         check(!expectFailure([] { AgcDriver::DriverDetail::ReadRawComputeShader(0); }).empty(), "raw compute accepted an unmapped entry");
+        alignas(256) std::array<std::uint32_t, 128> straddling{};
+        straddling.fill(0xbf800000);
+        straddling[63] = 0xf4000000;
+        straddling[64] = 0xfa000000;
+        straddling[65] = 0xbf810000;
+        const auto straddled = AgcDriver::DriverDetail::ReadRawComputeShader(reinterpret_cast<std::uintptr_t>(straddling.data()));
+        check(straddled->code.size() == 66 && straddled->code[64] == 0xfa000000, "raw compute stopped at a memory instruction across its first read window");
 #ifdef _WIN32
         auto* mapping = static_cast<std::uint32_t*>(VirtualAlloc(nullptr, 8192, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
         check(mapping != nullptr, "cannot allocate raw compute boundary test");
@@ -616,6 +672,8 @@ int main() {
         testWaitFreeSubmissionTheCpuWaitsFor();
         testMultiSubmissions();
         testShaderHeaderAlignment();
+        testHeaderWithoutProgramAddress();
+        testCopyIntoHostMemory();
         testRegisteredFloatMode();
         testWorkerFailure();
         check(expectFailure([] { LibcRunShutdown_nid_postfix(); }).find("required shader register") != std::string::npos, "shutdown lost worker failure");

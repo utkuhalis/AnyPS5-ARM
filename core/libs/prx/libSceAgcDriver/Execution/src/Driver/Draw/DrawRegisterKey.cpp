@@ -50,8 +50,8 @@ std::uint64_t Driver::drawRegisterKey(const QueueState& queue, const ShaderRegis
             continue;
         }
         --it;
-        mix(reinterpret_cast<std::uintptr_t>(it->second.get()));
-        mix(address - it->second->codeAddress);
+        for (const auto& snapshot : it->second) mix(reinterpret_cast<std::uintptr_t>(snapshot.get()));
+        mix(address - it->first);
     }
     return key;
 }
@@ -105,6 +105,7 @@ bool Driver::sameDecode(const DrawDecode& a, const DrawDecode& b) {
         const auto& y = b.programs[i];
         if (x.binary.stage != y.binary.stage || x.binary.codeAddress != y.binary.codeAddress || x.userDataBase != y.userDataBase || x.firstUserSgpr != y.firstUserSgpr || x.userData != y.userData || x.snapshot != y.snapshot || x.codeOffset != y.codeOffset) return false;
     }
+    if (p.targetExportPacking != q.targetExportPacking || p.dualSourceBlend != q.dualSourceBlend) return false;
     return true;
 }
 

@@ -51,6 +51,7 @@ DccKeys ByteKeys(std::uint8_t key) {
         case 0x80: return DccKeys::Clear1110;
         case 0xc0: return DccKeys::Clear1111;
         case 0x20: return DccKeys::ClearRegister;
+        case 0x10: return DccKeys::ClearSingle;
         case 0xff: return DccKeys::Uncompressed;
         default: return DccKeys::Mixed;
     }
@@ -82,6 +83,8 @@ struct ProofCounters {
     std::atomic<std::uint64_t> proved{0};
     std::atomic<std::uint64_t> scanned{0};
     std::atomic<std::uint64_t> unstable{0};
+    std::atomic<std::uint64_t> rangeProved{0};
+    std::atomic<std::uint64_t> rangeScanned{0};
 };
 
 ProofCounters& Proofs() {
@@ -382,6 +385,7 @@ const char* DccKeysName(DccKeys keys) {
         case DccKeys::Clear1110: return "1110";
         case DccKeys::Clear1111: return "1111";
         case DccKeys::ClearRegister: return "register";
+        case DccKeys::ClearSingle: return "single";
         case DccKeys::Mixed: return "mixed";
         case DccKeys::Unreadable: return "unreadable";
     }
@@ -458,15 +462,18 @@ DccKeys textureClearKeys(const GuestTextureResource& resource, std::uint64_t gue
     return keys;
 }
 
-DccKeys currentDccKeys(std::uint64_t metaAddress, std::size_t count) {
+DccKeys currentDccKeys(std::uint64_t metaAddress, std::size_t count, bool& memoized) {
+    memoized = false;
     if (metaAddress != 0 && count != 0 && GuestMemory::GpuMutex().HeldByThisThread()) {
         if (auto* recorder = Recorder::Active(); recorder != nullptr && recorder->PendingWriteOverlaps(metaAddress, count)) {
-            if (const auto keys = PendingStoreKeys(*recorder, metaAddress, count)) return *keys;
+            if (const auto keys = PendingStoreKeys(*recorder, metaAddress, count)) {
+                memoized = true;
+                return *keys;
+            }
             Recorder::CountSync(2);
             recorder->SyncThrough(metaAddress, count);
         }
     }
-    bool memoized = false;
     return readDccKeys(metaAddress, count, memoized);
 }
 
@@ -489,12 +496,14 @@ DccKeys ReadDccKeys(std::uint64_t metaAddress, std::uint64_t surfaceBytes) {
 }
 
 DccKeys CurrentDccKeys(std::uint64_t metaAddress, std::uint64_t surfaceBytes) {
-    return currentDccKeys(metaAddress, DccKeyBytes(surfaceBytes));
+    bool memoized = false;
+    return currentDccKeys(metaAddress, DccKeyBytes(surfaceBytes), memoized);
 }
 
 DccKeys CurrentDccKeys(std::uint64_t metaAddress, std::uint64_t surfaceBytes, std::size_t keyCount) {
     Require(keyCount >= DccKeyBytes(surfaceBytes), "a DCC key range covers fewer keys than one per 256 surface bytes");
-    return currentDccKeys(metaAddress, keyCount);
+    bool memoized = false;
+    return currentDccKeys(metaAddress, keyCount, memoized);
 }
 
 bool IsDccClear(DccKeys keys) {
@@ -618,7 +627,30 @@ DccKeys ProvedClearKeys(const GuestTextureResource& resource, std::uint64_t gues
 
 DccKeyProofCounts KeyProofCounts() {
     const auto& counters = Proofs();
-    return {counters.proved.load(std::memory_order_relaxed), counters.scanned.load(std::memory_order_relaxed), counters.unstable.load(std::memory_order_relaxed)};
+    return {counters.proved.load(std::memory_order_relaxed), counters.scanned.load(std::memory_order_relaxed), counters.unstable.load(std::memory_order_relaxed), counters.rangeProved.load(std::memory_order_relaxed), counters.rangeScanned.load(std::memory_order_relaxed)};
+}
+
+DccKeys ProvedCurrentDccKeys(std::uint64_t metaAddress, std::uint64_t surfaceBytes, DccRangeProof& proof) {
+    const auto count = DccKeyBytes(surfaceBytes);
+    if (metaAddress == 0 || count == 0 || !KeyFastPath() || !GuestMemory::GpuMutex().HeldByThisThread()) return CurrentDccKeys(metaAddress, surfaceBytes);
+    auto& counters = Proofs();
+    const auto collected = GuestMemory::CollectWrites(metaAddress, count);
+    if (proof.generation != 0 && proof.address == metaAddress && proof.count == count && collected != 0 && GuestMemory::UnchangedSince(metaAddress, count, proof.generation)) {
+        counters.rangeProved.fetch_add(1, std::memory_order_relaxed);
+        return proof.keys;
+    }
+    bool memoized = false;
+    const auto keys = currentDccKeys(metaAddress, count, memoized);
+    bool stable = collected != 0 && !memoized;
+    if (stable) {
+        if (auto* recorder = Recorder::Active(); recorder != nullptr) {
+            const auto info = recorder->DescribePendingWrite(metaAddress, count);
+            stable = !info.has_value() || info->signaled;
+        }
+    }
+    proof = stable ? DccRangeProof{metaAddress, count, keys, collected} : DccRangeProof{};
+    counters.rangeScanned.fetch_add(1, std::memory_order_relaxed);
+    return keys;
 }
 
 void ReadTextureSurface(const GuestTextureResource& resource, DccKeys keys, std::span<std::byte> bytes) {

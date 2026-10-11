@@ -5,7 +5,9 @@
 #include "prx/libSceAgcDriver/Execution/include/Driver/Synchronization/SynchronizationStatistics.hpp"
 #include "prx/libSceAgcDriver/Execution/include/GuestMemory.hpp"
 #include "prx/libSceAgcDriver/Execution/include/Pm4.hpp"
+#include "prx/libSceAgcDriver/Execution/include/ThreadPriority.hpp"
 #include <bit>
+#include <cstdio>
 #include <cstdlib>
 
 namespace AgcDriver::DriverDetail {
@@ -131,6 +133,34 @@ void Driver::waitForFlipRoom(const Submission& submission) {
     }
 }
 
+bool Driver::awaitsTitle(std::uint64_t awaited) const {
+    return runningWorkers.load(std::memory_order_acquire) == 0 && orderHolders.load(std::memory_order_acquire) == 0 && !completionsPending() && !Graphics::Recorder::SnapshotWriteOverlaps(awaited, 4);
+}
+
+void Driver::noteAwaitingTitle(std::uint32_t queue, std::uint64_t awaited) {
+    if (queue != 0 || flipHolders.load(std::memory_order_acquire) == 0 || queue0AwaitsTitle.load(std::memory_order_acquire) || !awaitsTitle(awaited)) return;
+    std::lock_guard lock(mutex);
+    queue0AwaitsTitle.store(true, std::memory_order_release);
+    changed.notify_all();
+}
+
+void Driver::holdFlipBehindWorker(const Submission& submission) {
+    if (submission.queue != 0 || onWorkerThread()) return;
+    bool flips = false;
+    for (std::size_t cursor = 0; cursor < submission.commands.size() && !flips; cursor += Pm4::PacketWords(submission.commands[cursor])) flips = submission.commands[cursor] == FlipPacketHeader;
+    if (!flips) return;
+    std::unique_lock lock(mutex);
+    flipHolders.fetch_add(1, std::memory_order_acq_rel);
+    changed.wait(lock, [&] { return failure != nullptr || stopping.load(std::memory_order_acquire) || shutdownToken.stop_requested() || flipsAhead.load(std::memory_order_acquire) == 0 || queue0AwaitsTitle.load(std::memory_order_acquire); });
+    flipHolders.fetch_sub(1, std::memory_order_acq_rel);
+}
+
+void Driver::releaseFlipHold() {
+    std::lock_guard lock(mutex);
+    flipsAhead.fetch_sub(1, std::memory_order_acq_rel);
+    if (flipHolders.load(std::memory_order_acquire) != 0) changed.notify_all();
+}
+
 void Driver::reserveOutputs(Submission& submission) {
     for (std::size_t cursor = 0; cursor < submission.commands.size();) {
         const auto* words = submission.commands.data() + cursor;
@@ -167,6 +197,7 @@ void Driver::executeRewindTail(const Submission& stalled) {
         while ((control.load(std::memory_order_acquire) & 0x80000000u) == 0) {
             CheckFailure();
             checkStopping();
+            noteAwaitingTitle(stalled.queue, reinterpret_cast<std::uint64_t>(stalled.rewindTail - 1));
             PollSleep();
         }
     }
@@ -218,6 +249,7 @@ void Driver::Submit(const Packet* packet, std::uint32_t queue) {
     readRegisterLists(submission);
     if (APS5_ENABLE_TIMING_LOG) submission.validatedAt = std::chrono::steady_clock::now();
     waitForFlipRoom(submission);
+    holdFlipBehindWorker(submission);
     if (APS5_ENABLE_TIMING_LOG) submission.roomReadyAt = std::chrono::steady_clock::now();
     static const bool trace = std::getenv("APS5_TRACE_GPU") != nullptr;
     if (trace) std::fprintf(stderr, "[gpu] %.1f submit queue=0x%x dwords=%zu at %p\n", TraceMs(), queue, submission.commands.size(), static_cast<const void*>(descriptor.addr));
@@ -240,6 +272,10 @@ void Driver::Submit(const Packet* packet, std::uint32_t queue) {
             costs.copyNs += static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>((copied - start) + (now - validated)).count());
         }
         if (APS5_ENABLE_TIMING_LOG) submission.enqueuedAt = std::chrono::steady_clock::now();
+        if (queue == 0 && !submission.flips.empty()) {
+            submission.holdsFlip = true;
+            flipsAhead.fetch_add(1, std::memory_order_acq_rel);
+        }
         enqueue(std::move(submission));
         ++accepted;
     }
@@ -299,6 +335,7 @@ void Driver::noteWaitBlocked(std::uint32_t queue, std::uint64_t awaited, bool bl
     if (blocked) runningWorkers.fetch_sub(1, std::memory_order_acq_rel);
     else runningWorkers.fetch_add(1, std::memory_order_acq_rel);
     if (queue == 0) queue0Awaited.store(blocked ? awaited : 0, std::memory_order_release);
+    if (queue == 0 && !blocked) queue0AwaitsTitle.store(false, std::memory_order_release);
     if (blocked && orderHolders.load(std::memory_order_acquire) != 0) {
         std::lock_guard lock(mutex);
         changed.notify_all();
@@ -312,7 +349,17 @@ void Driver::enqueue(Submission submission) {
     for (const auto dword : submission.labelWrites) ++worker.unfinishedWrites[dword];
     worker.pending.push_back(std::move(submission));
     worker.queued.fetch_add(1, std::memory_order_acq_rel);
-    if (!worker.thread.joinable()) worker.thread = std::thread([this, queue] { run(queue); });
+    if (!worker.thread.joinable()) worker.thread = std::thread([this, queue] {
+        char role[32];
+        std::snprintf(role, sizeof(role), "queue 0x%x worker", queue);
+        try {
+            RaiseWorkerThreadPriority(role);
+        } catch (...) {
+            ReportFailure(std::current_exception());
+            return;
+        }
+        run(queue);
+    });
 }
 
 void Driver::noteHeldAtSubmit(Submission& submission, std::size_t cursor) {

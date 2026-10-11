@@ -126,11 +126,11 @@ MyGame/
 Relink the executable for macOS:
 
 ```sh
-build-mac/core/relinker/relinker --macos --to-intel MyGame/eboot.bin out/eboot
+build-mac/core/relinker/relinker --macos --to-rosetta MyGame/eboot.bin out/eboot
 ```
 
 - `--macos` writes a Mach-O executable.
-- `--to-intel` rewrites the AMD-only instructions that Rosetta cannot run.
+- `--to-rosetta` rewrites the AMD-only instructions and the ones Rosetta lacks (RDSEED, RDPID, CLWB).
 - The converted modules are written to `out/app0/sce_module/`.
 
 #### 3. Package it as an app
@@ -320,11 +320,11 @@ MyGame/
 Çalıştırılabilir dosyayı macOS için dönüştür:
 
 ```sh
-build-mac/core/relinker/relinker --macos --to-intel MyGame/eboot.bin out/eboot
+build-mac/core/relinker/relinker --macos --to-rosetta MyGame/eboot.bin out/eboot
 ```
 
 - `--macos`, Mach-O dosyası üretir.
-- `--to-intel`, Rosetta'nın çalıştıramadığı AMD'ye özel komutları dönüştürür.
+- `--to-rosetta`, AMD'ye özel komutları ve Rosetta'nın çalıştıramadığı komutları (RDSEED, RDPID, CLWB) dönüştürür.
 - Dönüştürülen modüller `out/app0/sce_module/` klasörüne yazılır.
 
 #### 3. Uygulama olarak paketleme

@@ -4,6 +4,13 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
+#ifndef _WIN32
+#include <cerrno>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <sys/mman.h>
+#endif
 #include <cstdio>
 #include <iterator>
 #include <map>
@@ -72,6 +79,22 @@ public:
         return reinterpret_cast<void*>(candidate);
     }
 
+    bool MarkUsedForCommit(const void* pointer, std::size_t bytes) {
+        std::lock_guard lock(_lock);
+        const auto start = reinterpret_cast<std::uintptr_t>(pointer);
+        const auto end = start + bytes;
+        const auto exact = _used.find(start);
+        if (exact != _used.end() && exact->second >= end) return false;
+        const auto next = _used.lower_bound(start);
+        if ((next != _used.end() && next->first < end) || (next != _used.begin() && std::prev(next)->second > start)) {
+            char message[160];
+            std::snprintf(message, sizeof(message), "guest arena commit 0x%llx+0x%zx overlaps a used range", static_cast<unsigned long long>(start), bytes);
+            throw std::runtime_error(message);
+        }
+        _used.emplace(start, end);
+        return true;
+    }
+
     void MarkUsed(const void* pointer, std::size_t bytes) {
         std::lock_guard lock(_lock);
         const auto start = reinterpret_cast<std::uintptr_t>(pointer);
@@ -108,7 +131,9 @@ public:
 
 private:
     Arena() {
-#ifdef _WIN32
+#if defined(__linux__)
+        SeedLinuxUsedRanges();
+#elif defined(_WIN32)
         _writeWatched = std::getenv("APS5_NO_WRITE_WATCH") == nullptr;
         SYSTEM_INFO system{};
         GetSystemInfo(&system);
@@ -138,6 +163,66 @@ private:
         _end = end;
 #endif
     }
+
+#if defined(__linux__)
+    void SeedLinuxUsedRanges() {
+        std::ifstream maps("/proc/self/maps");
+        if (!maps.is_open()) throw std::runtime_error("guest arena: cannot open /proc/self/maps");
+        std::string line;
+        while (std::getline(maps, line)) {
+            std::istringstream fields(line);
+            std::uintptr_t begin = 0, end = 0;
+            char dash = 0;
+            if (!(fields >> std::hex >> begin >> dash >> end) || dash != '-' || end <= begin) throw std::runtime_error("guest arena: malformed /proc/self/maps line: " + line);
+            if (end <= ArenaStart || begin >= ApplicationAreaEnd) continue;
+            const auto first = std::max(begin, ArenaStart);
+            const auto last = std::min(end, ApplicationAreaEnd);
+            _used.emplace(first, last);
+            _hostRegions.emplace_back(first, last);
+        }
+        _used.emplace(SystemReservedStart, SystemReservedEnd);
+        _hostRegions.emplace_back(SystemReservedStart, SystemReservedEnd);
+        ReserveFreeRanges();
+        _base = ArenaStart;
+        _end = ApplicationAreaEnd;
+    }
+
+    static void TryReserve(std::vector<std::pair<std::uintptr_t, std::uintptr_t>>& occupied, std::uintptr_t from, std::uintptr_t to) {
+        constexpr std::uintptr_t kChunk = 1ULL << 30;
+        for (std::uintptr_t cursor = from; cursor < to; cursor += kChunk) {
+            const auto end = std::min(cursor + kChunk, to);
+            void* const wanted = reinterpret_cast<void*>(cursor);
+            void* const placed = mmap(wanted, end - cursor, PROT_NONE,
+                MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED_NOREPLACE, -1, 0);
+            if (placed == wanted) continue;
+            const int failed = placed == MAP_FAILED ? errno : EINVAL;
+            if (placed != MAP_FAILED) munmap(placed, end - cursor);
+            if (failed != EEXIST) {
+                char message[128];
+                std::snprintf(message, sizeof(message), "guest arena: cannot reserve 0x%llx+0x%llx",
+                    static_cast<unsigned long long>(cursor), static_cast<unsigned long long>(end - cursor));
+                throw std::system_error(failed, std::system_category(), message);
+            }
+            occupied.emplace_back(cursor, end);
+        }
+    }
+
+    void ReserveFreeRanges() {
+        std::vector<std::pair<std::uintptr_t, std::uintptr_t>> occupied;
+        std::uintptr_t cursor = ArenaStart;
+        for (const auto& [usedStart, usedEnd] : _used) {
+            if (usedStart > ApplicationAreaEnd) break;
+            if (usedStart > cursor) TryReserve(occupied, cursor, std::min(usedStart, ApplicationAreaEnd));
+            if (usedEnd > cursor) cursor = usedEnd;
+            if (cursor >= ApplicationAreaEnd) break;
+        }
+        if (cursor < ApplicationAreaEnd) TryReserve(occupied, cursor, ApplicationAreaEnd);
+        for (const auto& [from, to] : occupied) {
+            _used.emplace(from, to);
+            _hostRegions.emplace_back(from, to);
+        }
+    }
+#endif
 
     std::mutex _lock;
     std::map<std::uintptr_t, std::uintptr_t> _used;
@@ -192,6 +277,16 @@ void GuestArenaRange_nid_postfix(std::uintptr_t* base, std::size_t* bytes) {
     *bytes = Arena::Get().Size();
 }
 
+namespace {
+
+std::invalid_argument OutsideArena(const char* operation, const void* pointer, std::size_t bytes) {
+    char message[128];
+    std::snprintf(message, sizeof(message), "%s 0x%llx+0x%zx outside the guest arena", operation, static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(pointer)), bytes);
+    return std::invalid_argument(message);
+}
+
+}
+
 #ifdef _WIN32
 void GuestArenaSetProtection_nid_postfix(std::uintptr_t address, std::size_t bytes, std::uint32_t protection) {
     WindowsMappings::Get().SetProtection(address, bytes, protection);
@@ -221,16 +316,6 @@ bool GuestArenaCollectWrites_nid_postfix(std::uintptr_t address, std::size_t byt
 
 bool GuestArenaHostRegionOverlaps_nid_postfix(std::uintptr_t address, std::size_t bytes) {
     return Arena::Get().OverlapsHostRegion(address, bytes);
-}
-
-namespace {
-
-std::invalid_argument OutsideArena(const char* operation, const void* pointer, std::size_t bytes) {
-    char message[128];
-    std::snprintf(message, sizeof(message), "%s 0x%llx+0x%zx outside the guest arena", operation, static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(pointer)), bytes);
-    return std::invalid_argument(message);
-}
-
 }
 
 std::uint64_t GuestArenaCommitGeneration_nid_postfix() {
@@ -269,6 +354,54 @@ void GuestArenaUnmapAlias_nid_postfix(void* alias) {
 }
 #endif
 
+// macOS reserves no arena (Available() is false, so the guest heap does not commit into it); these
+// are built there for the heap's references and refuse ranges outside the arena.
+#if defined(__linux__) || defined(__APPLE__)
+namespace {
+int PosixProtection(std::uint32_t windowsProtection) {
+    switch (windowsProtection) {
+    case 0x01: return PROT_NONE;
+    case 0x02: return PROT_READ;
+    case 0x04: return PROT_READ | PROT_WRITE;
+    case 0x08: return PROT_READ | PROT_WRITE;
+    case 0x10: return PROT_EXEC;
+    case 0x20: return PROT_READ | PROT_EXEC;
+    case 0x40: return PROT_READ | PROT_WRITE | PROT_EXEC;
+    default: throw std::runtime_error("guest arena: unmapped protection value");
+    }
+}
+
+void* PlaceAt(void* pointer, std::size_t bytes, std::uint32_t protection) {
+    return mmap(pointer, bytes, PosixProtection(protection), MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+}
+}
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+void GuestArenaSetProtection_nid_postfix(std::uintptr_t address, std::size_t bytes, std::uint32_t protection) {
+    if (!Arena::Get().Contains(reinterpret_cast<void*>(address), bytes)) throw OutsideArena("set protection", reinterpret_cast<void*>(address), bytes);
+    if (mprotect(reinterpret_cast<void*>(address), bytes, PosixProtection(protection)) != 0)
+        throw std::system_error(errno, std::generic_category(), "guest arena protection failed");
+}
+
+void GuestArenaCommit_nid_postfix(void* pointer, std::size_t bytes, std::uint32_t protection, std::size_t granule) {
+    (void)granule;
+    if (!Arena::Get().Contains(pointer, bytes)) throw OutsideArena("commit", pointer, bytes);
+    const bool marked = Arena::Get().MarkUsedForCommit(pointer, bytes);
+    try {
+        if (PlaceAt(pointer, bytes, protection) == MAP_FAILED) throw std::system_error(errno, std::generic_category(), "guest arena commit failed");
+    } catch (...) {
+        if (marked) Arena::Get().Release(pointer, bytes);
+        throw;
+    }
+}
+
+void GuestArenaReset_nid_postfix(void* pointer, std::size_t bytes) {
+    if (!Arena::Get().Contains(pointer, bytes)) throw OutsideArena("reset", pointer, bytes);
+    if (PlaceAt(pointer, bytes, 0x01) == MAP_FAILED) throw std::system_error(errno, std::generic_category(), "guest arena reset failed");
+}
+#endif
+
 bool GuestArenaWriteWatched_nid_postfix() {
     return Arena::Get().WriteWatched();
 }
@@ -276,12 +409,8 @@ bool GuestArenaWriteWatched_nid_postfix() {
 bool GuestArenaBeginHostWrite_nid_postfix(void* pointer, std::size_t bytes) {
 #ifdef _WIN32
     return WindowsMappings::Get().BeginHostWrite(reinterpret_cast<std::uintptr_t>(pointer), bytes);
-#elif defined(__APPLE__)
-    GuestWriteWatch::GuestWriteWatchHostWrite_nid_postfix(pointer, bytes);
-    return true;
 #else
-    (void)pointer;
-    (void)bytes;
+    GuestWriteWatch::GuestWriteWatchBeginHostWrite_nid_postfix(pointer, bytes);
     return true;
 #endif
 }
@@ -290,8 +419,7 @@ void GuestArenaEndHostWrite_nid_postfix(void* pointer, std::size_t bytes) {
 #ifdef _WIN32
     WindowsMappings::Get().EndHostWrite(reinterpret_cast<std::uintptr_t>(pointer), bytes);
 #else
-    (void)pointer;
-    (void)bytes;
+    GuestWriteWatch::GuestWriteWatchEndHostWrite_nid_postfix(pointer, bytes);
 #endif
 }
 
@@ -299,11 +427,21 @@ void GuestArenaEndHostWrite_nid_postfix(void* pointer, std::size_t bytes) {
 namespace {
 
 std::atomic<SharedBackingResolver> sharedBackingResolver{nullptr};
+std::atomic<SharedBackingWriter> sharedBackingWriter{nullptr};
 
 }
 
 void GuestArenaSetSharedBacking_nid_postfix(SharedBackingResolver resolver) {
     sharedBackingResolver.store(resolver, std::memory_order_release);
+}
+
+void GuestArenaSetSharedBackingWriter_nid_no_patch(SharedBackingWriter writer) {
+    sharedBackingWriter.store(writer, std::memory_order_release);
+}
+
+bool GuestArenaWriteSharedBacking_nid_no_patch(std::uintptr_t address, const void* source, std::size_t bytes) {
+    const auto writer = sharedBackingWriter.load(std::memory_order_acquire);
+    return writer != nullptr && writer(address, source, bytes);
 }
 
 bool GuestArenaSharedBacking_nid_postfix(std::uintptr_t address, std::size_t bytes, int* file, std::uint64_t* offset) {

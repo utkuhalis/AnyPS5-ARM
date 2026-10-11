@@ -235,6 +235,14 @@ ConservativeZExport readConservativeZExport(Reader& reader) {
     return static_cast<ConservativeZExport>(value);
 }
 
+ColorExportPacking readColorExportPacking(Reader& reader) {
+    const auto value = reader.ReadU8();
+    if (value > static_cast<std::uint8_t>(ColorExportPacking::Unorm10_11_11)) {
+        throw std::runtime_error("RequestSerializer: invalid ColorExportPacking value");
+    }
+    return static_cast<ColorExportPacking>(value);
+}
+
 void writeShaderBinary(Writer& writer, const ShaderBinary& binary) {
     writer.WriteU8(static_cast<std::uint8_t>(binary.stage));
     writer.WriteU64(binary.codeAddress);
@@ -312,6 +320,10 @@ void writePixelInfo(Writer& writer, const ShaderPixelStageInfo& info) {
     for (const std::uint8_t value : info.targetExportMapping) {
         writer.WriteU8(value);
     }
+    for (const ColorExportPacking value : info.targetExportPacking) {
+        writer.WriteU8(static_cast<std::uint8_t>(value));
+    }
+    writer.WriteBool(info.dualSourceBlend);
 }
 
 ShaderPixelStageInfo readPixelInfo(Reader& reader, std::uint32_t version) {
@@ -353,6 +365,12 @@ ShaderPixelStageInfo readPixelInfo(Reader& reader, std::uint32_t version) {
     } else {
         info.targetExportMapping.fill(0u);
     }
+    if (version >= 14u) {
+        for (ColorExportPacking& value : info.targetExportPacking) {
+            value = readColorExportPacking(reader);
+        }
+    }
+    if (version >= 15u) info.dualSourceBlend = reader.ReadBool();
     if (version < 5u) {
         const auto input = [](PixelInput value, bool present) { return present ? PixelInputBit(value) : 0u; };
         info.inputAddr = input(PixelInput::PerspectiveSample, info.hasPerspectiveCenterVgpr && inputAddrOrCenterVgpr == 2u) | input(PixelInput::PerspectiveCenter, info.hasPerspectiveCenterVgpr) |
@@ -714,7 +732,7 @@ std::string RequestSerializer::Serialize(const RecompileRequest& request) const 
     std::string buffer;
     Writer writer(buffer);
     writer.WriteU32(0x41505335u);
-    writer.WriteU32(14u);
+    writer.WriteU32(16u);
     writeShaderBinary(writer, request.shader);
     writeGuestContext(writer, request.context);
     writeSpirvTarget(writer, request.target);
@@ -742,7 +760,7 @@ DeserializedRequest RequestSerializer::Deserialize(std::string_view text) const 
     Reader reader(decoded);
     if (reader.ReadU32() != 0x41505335u) throw std::runtime_error("invalid recompile request signature");
     const auto version = reader.ReadU32();
-    if (version < 1u || version > 14u) throw std::runtime_error("unsupported recompile request serialization version");
+    if (version < 1u || version > 16u) throw std::runtime_error("unsupported recompile request serialization version");
     DeserializedRequest result{};
     result.request.shader = readShaderBinary(reader, result.shaderCode, result.shaderHeader);
     result.request.context = readGuestContext(reader, result, version);
@@ -762,7 +780,7 @@ DeserializedRequest RequestSerializer::Deserialize(std::string_view text) const 
     if (version >= 9u) result.request.target.srgbDecodeFormats = reader.ReadU32();
     if (version >= 10u && result.request.context.compute.has_value()) result.request.context.compute->scratchDwords = reader.ReadU32();
     if (version >= 12u) result.request.target.narrowSubgroupClock = reader.ReadBool();
-    if (version >= 14u) result.request.target.subgroupStages = reader.ReadU32();
+    if (version >= 16u) result.request.target.subgroupStages = reader.ReadU32();
     return result;
 }
 

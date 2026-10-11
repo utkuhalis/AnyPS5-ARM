@@ -11,11 +11,23 @@ endif()
 
 # A prx finds the others beside itself. The build-tree rpath would point a patched copy at the
 # unpatched libraries.
+if(APPLE)
+    set(PRX_RPATH "@loader_path")
+else()
+    set(PRX_RPATH "$ORIGIN")
+endif()
+
 function(configure_prx_rpath target)
     if(APPLE)
         set_target_properties(${target} PROPERTIES BUILD_WITH_INSTALL_RPATH ON INSTALL_RPATH "@loader_path")
     endif()
 endfunction()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    include(CheckPIESupported)
+    check_pie_supported(LANGUAGES C CXX)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
 
 add_executable(nid_patcher
         ${CMAKE_CURRENT_SOURCE_DIR}/nid/src/Sha1.cpp
@@ -74,7 +86,7 @@ set_target_properties(libc PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY ${UNPATCHED_DIR}
         ARCHIVE_OUTPUT_DIRECTORY ${IMPLIB_DIR}
         BUILD_WITH_INSTALL_RPATH ON
-        INSTALL_RPATH "$ORIGIN"
+        INSTALL_RPATH "${PRX_RPATH}"
 )
 
 set(LIBC_UNPATCHED ${UNPATCHED_DIR}/libc.prx)
@@ -127,7 +139,7 @@ foreach(LIB_DIR ${LIBS_DIRS})
                 LIBRARY_OUTPUT_DIRECTORY ${UNPATCHED_DIR}
                 ARCHIVE_OUTPUT_DIRECTORY ${IMPLIB_DIR}
                 BUILD_WITH_INSTALL_RPATH ON
-                INSTALL_RPATH "$ORIGIN"
+                INSTALL_RPATH "${PRX_RPATH}"
         )
 
         set(UNPATCHED_FILE ${UNPATCHED_DIR}/${LIB_NAME}.prx)
@@ -148,6 +160,31 @@ endforeach()
 add_custom_target(libs DEPENDS ${PATCHED_OUTPUTS})
 
 if(BUILD_TESTING)
+    find_package(Python3 QUIET COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME nid_patcher_macho COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/nid/tests/test_macho_nids.py $<TARGET_FILE:nid_patcher>)
+    endif()
+    add_test_executable(patched_libraries_tests tests/PatchedLibraries.cpp)
+    add_dependencies(patched_libraries_tests libs)
+    if(MINGW)
+        target_compile_options(patched_libraries_tests PRIVATE -fasynchronous-unwind-tables)
+        target_link_options(patched_libraries_tests PRIVATE -static -static-libgcc -static-libstdc++)
+    endif()
+    add_test(NAME patched_libraries COMMAND patched_libraries_tests ${PATCHED_DIR})
+    add_test_executable(guest_kernel_sys_tests tests/GuestKernelSys.cpp)
+    target_include_directories(guest_kernel_sys_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(guest_kernel_sys_tests PRIVATE libkernel_sys libkernel libc)
+    configure_windows_unwind(guest_kernel_sys_tests)
+    add_test(NAME guest_kernel_sys COMMAND guest_kernel_sys_tests)
+    if(WIN32)
+        set_tests_properties(guest_kernel_sys PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libkernel_sys>")
+    endif()
+    if(APPLE)
+        add_subdirectory(tests/write_watch)
+    endif()
+
     add_test_executable(guest_offline_imports_tests tests/GuestOfflineImports.cpp)
     target_include_directories(guest_offline_imports_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(guest_offline_imports_tests PRIVATE libSceHttp libSceNpEntitlementAccess libSceRudp libc)
@@ -157,6 +194,21 @@ if(BUILD_TESTING)
         set_tests_properties(guest_offline_imports PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceHttp>")
     endif()
+
+    add_test_executable(guest_system_gesture_tests tests/GuestSystemGesture.cpp)
+    target_include_directories(guest_system_gesture_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(guest_system_gesture_tests PRIVATE libSceSystemGesture libc)
+    configure_windows_unwind(guest_system_gesture_tests)
+    add_test(NAME guest_system_gesture COMMAND guest_system_gesture_tests)
+    if(WIN32)
+        set_tests_properties(guest_system_gesture PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceSystemGesture>")
+    endif()
+
+    if(UNIX AND (CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$" OR CMAKE_OSX_ARCHITECTURES STREQUAL "x86_64"))
+        add_subdirectory(tests/register_context)
+    endif()
+
     add_test_executable(savedata_memory_metadata_tests tests/SaveDataMemoryMetadata.cpp)
     target_include_directories(savedata_memory_metadata_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(savedata_memory_metadata_tests PRIVATE libSceSaveData.native)
@@ -223,5 +275,15 @@ if(BUILD_TESTING)
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceSaveData>")
         set_tests_properties(savedata_native_write_replacement PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceSaveData.native>")
+    endif()
+
+    add_test_executable(guest_posix_random_tests tests/GuestPosixRandom.cpp)
+    target_include_directories(guest_posix_random_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(guest_posix_random_tests PRIVATE libScePosixForWebKit)
+    configure_windows_unwind(guest_posix_random_tests)
+    add_test(NAME guest_posix_random COMMAND guest_posix_random_tests)
+    if(WIN32)
+        set_tests_properties(guest_posix_random PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libScePosixForWebKit>")
     endif()
 endif()

@@ -240,7 +240,7 @@ int APS5_VABI scePadSetVibration(int handle, const PadVibrationParam* param) {
 
 int APS5_VABI scePadSetVibrationMode(int handle, int mode) {
  if (handle != PAD_HANDLE) return PAD_ERROR_INVALID_HANDLE;
- if (mode != 0 && mode != 1) return PAD_ERROR_INVALID_ARG;
+ if (mode < 0 || mode > 2) return PAD_ERROR_INVALID_ARG;
  Pad::SetVibrationMode(mode);
  return PAD_OK;
 }
@@ -268,9 +268,10 @@ int APS5_VABI scePadIsRemoteController(int handle, bool* remote) {
 }
 
 
-int APS5_VABI scePadSetAngularVelocityBiasCorrectionState() {
- NotImplemented_nid_no_patch(__func__);
- return 0;
+int APS5_VABI scePadSetAngularVelocityBiasCorrectionState(int handle, bool enabled) {
+ if (handle != PAD_HANDLE) return PAD_ERROR_INVALID_HANDLE;
+ if (enabled) NotImplemented_nid_no_patch(__func__);
+ return PAD_OK;
 }
 
 }

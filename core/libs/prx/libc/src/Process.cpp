@@ -8,6 +8,9 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include <atomic>
 #include <chrono>
 #include <stdexcept>
@@ -107,6 +110,13 @@ extern "C" {
         std::fprintf(stderr, "[libc] _Exit(%d) called from %p\n", code, __builtin_return_address(0));
         std::fflush(stderr);
     }
+    LibcTerminate_nid_no_patch(code);
+}
+
+[[noreturn]] void LibcTerminate_nid_no_patch(int code) {
+#ifdef _WIN32
+    TerminateProcess(GetCurrentProcess(), static_cast<UINT>(code));
+#endif
     std::_Exit(code);
 }
 
@@ -123,6 +133,7 @@ extern "C" {
         std::_Exit(code);
     }).detach();
 #endif
+    CxaFinalize_nid_no_patch(nullptr);
     std::exit(code);
 }
 

@@ -89,6 +89,9 @@ BindingAllocationResult BindingAllocator::Allocate(IrProgram& program, const Bin
     if (layout.pushConstantOffsetBytes + layout.pushConstantSizeBytes > NativePushConstantSize) {
         fail("shader binding layout failed: push constant range exceeds the native push constant size");
     }
+    if (layout.pushConstantSizeBytes != 0u && layout.pushConstantOffsetBytes / NativePushSlotSize != (layout.pushConstantOffsetBytes + layout.pushConstantSizeBytes - 1u) / NativePushSlotSize) {
+        fail("shader binding layout failed: push constant range crosses a stage slot");
+    }
 
     const ShaderInfo& info = program.Resources().info;
 
@@ -114,7 +117,7 @@ BindingAllocationResult BindingAllocator::Allocate(IrProgram& program, const Bin
     std::array<std::vector<std::uint32_t>, ImageBindingCount> imageGroups;
     const auto place = [&](std::uint32_t i) {
         const bool dynamic = info.images[i].mipMode == ImageMipMode::DynamicStorage;
-        const std::uint32_t count = dynamic ? RuntimeAbi::DynamicStorageMipCapacity : 1u;
+        const std::uint32_t count = dynamic ? RuntimeAbi::StorageMipSlots : 1u;
         std::array<bool, ImageBindingCount> placed{};
         for (const auto& mode : ResourceMaterializer::RuntimeImageModes(info.images[i])) {
             const auto group = ImageBindingIndex(DescriptorBindingForImage(mode));
@@ -161,6 +164,8 @@ BindingAllocationResult BindingAllocator::Allocate(IrProgram& program, const Bin
     }
     if (info.usesDma) {
         addBinding(next, DescriptorBindingKind::BdaPagetable);
+    }
+    if (info.usesDma || info.usesFaultBuffer) {
         addBinding(next, DescriptorBindingKind::FaultBuffer);
     }
 

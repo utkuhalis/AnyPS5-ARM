@@ -116,11 +116,15 @@ struct Instance {
     std::uint32_t codec = 0;
     std::uint64_t flags = 0;
     void* decoder = nullptr;
+    std::vector<void*> channelDecoders;
+    std::vector<std::uint32_t> channelBytes;
+    std::vector<std::uint8_t> blockPcm;
     Atrac9CodecInfo info{};
     bool initialized = false;
     std::uint32_t superframeRemaining = 0;
     std::uint32_t frameInSuperframe = 0;
     std::uint64_t totalDecodedSamples = 0;
+    std::uint64_t segmentSamples = 0;
     SidebandGaplessDecode gapless{};
     bool flagsReported = false;
     AVCodecContext* mp3 = nullptr;
@@ -135,18 +139,19 @@ struct Instance {
 
     ~Instance() {
         if (decoder) Atrac9ReleaseHandle(decoder);
+        for (void* channelDecoder : channelDecoders) Atrac9ReleaseHandle(channelDecoder);
         if (mp3) avcodec_free_context(&mp3);
         if (opus) avcodec_free_context(&opus);
     }
 };
 
-std::mutex g_lock;
-std::map<std::uint32_t, std::unique_ptr<Instance>> g_instances;
+std::mutex& g_lock = *new std::mutex();
+std::map<std::uint32_t, std::unique_ptr<Instance>>& g_instances = *new std::map<std::uint32_t, std::unique_ptr<Instance>>();
 std::atomic<std::uint32_t> g_nextContext{1};
 std::atomic<std::uint32_t> g_nextInstance{1};
 std::atomic<std::uint32_t> g_nextBatch{1};
-std::mutex g_batchLock;
-std::set<std::uint32_t> g_batches;
+std::mutex& g_batchLock = *new std::mutex();
+std::set<std::uint32_t>& g_batches = *new std::set<std::uint32_t>();
 
 enum class JobKind : std::uint32_t {
     Initialize = 1,
@@ -189,6 +194,7 @@ static_assert(sizeof(PackedJob) == 32);
 int Append(AjmBatchInfo* info, const JobHeader& header, const AjmBuffer* inputs, const AjmBuffer* outputs) {
     if (!info || !info->p_buffer) return SCE_AJM_ERROR_INVALID_PARAMETER;
     if (header.inputCount > 0xffu || header.outputCount > 0xffu || header.parameterSize > sizeof(header.parameters) || header.sidebandSize > 0xffffffffu) return SCE_AJM_ERROR_INVALID_PARAMETER;
+    if ((header.inputCount && !inputs) || (header.outputCount && !outputs)) NotImplemented_nid_no_patch("AJM batch job with a null buffer list and a nonzero buffer count");
     const std::size_t parameterBytes = (header.parameterSize + 7u) & ~std::size_t{7};
     const std::size_t bytes = sizeof(PackedJob) + (header.inputCount + header.outputCount) * sizeof(AjmBuffer) + parameterBytes;
     if (info->offset > info->size || bytes > info->size - info->offset) return SCE_AJM_ERROR_OUT_OF_RESOURCES;
@@ -196,9 +202,9 @@ int Append(AjmBatchInfo* info, const JobHeader& header, const AjmBuffer* inputs,
     const PackedJob record{static_cast<std::uint8_t>(header.kind), static_cast<std::uint8_t>(header.inputCount), static_cast<std::uint8_t>(header.outputCount), static_cast<std::uint8_t>(header.parameterSize), header.instance, header.flags, header.sideband, static_cast<std::uint32_t>(header.sidebandSize), static_cast<std::uint32_t>(bytes)};
     std::memcpy(cursor, &record, sizeof(record));
     cursor += sizeof(record);
-    if (header.inputCount) std::memcpy(cursor, inputs, header.inputCount * sizeof(AjmBuffer));
+    if (inputs) std::memcpy(cursor, inputs, header.inputCount * sizeof(AjmBuffer));
     cursor += header.inputCount * sizeof(AjmBuffer);
-    if (header.outputCount) std::memcpy(cursor, outputs, header.outputCount * sizeof(AjmBuffer));
+    if (outputs) std::memcpy(cursor, outputs, header.outputCount * sizeof(AjmBuffer));
     cursor += header.outputCount * sizeof(AjmBuffer);
     if (header.parameterSize) std::memcpy(cursor, header.parameters, header.parameterSize);
     info->offset += bytes;
@@ -237,16 +243,113 @@ Instance* Find(std::uint32_t id) {
     return found == g_instances.end() ? nullptr : found->second.get();
 }
 
-// Replaces the instance's decoder with a fresh one for its configuration, at a superframe boundary. The
+constexpr std::uint8_t AT9_MULTICHANNEL_HEADER = 0x30;
+
+struct At9MultichannelConfig {
+    std::uint32_t channels;
+    std::uint32_t frameBytes;
+    std::uint32_t framesInSuperframe;
+    unsigned char monoConfig[ATRAC9_CONFIG_DATA_SIZE];
+};
+
+bool ParseMultichannelConfig(const std::uint8_t* config, At9MultichannelConfig& parsed) {
+    if (config[0] != AT9_MULTICHANNEL_HEADER) return false;
+    const std::uint32_t bits = (std::uint32_t{config[1]} << 16) | (std::uint32_t{config[2]} << 8) | config[3];
+    if ((bits >> 13) & 1u) return false;
+    const std::uint32_t sampleRateIndex = (bits >> 20) & 0xFu;
+    const std::uint32_t superframeIndex = bits & 3u;
+    parsed.channels = ((bits >> 14) & 0x3Fu) + 1;
+    parsed.frameBytes = ((bits >> 2) & 0x7FFu) + 1;
+    parsed.framesInSuperframe = 1u << superframeIndex;
+    const std::uint32_t mono = (0xFEu << 24) | (sampleRateIndex << 20) | ((parsed.frameBytes - 1) << 5) | (superframeIndex << 3);
+    for (std::size_t i = 0; i < ATRAC9_CONFIG_DATA_SIZE; ++i) parsed.monoConfig[i] = static_cast<unsigned char>(mono >> (24 - 8 * i));
+    return true;
+}
+
+bool DescribeAt9Config(const std::uint8_t* configData, Atrac9CodecInfo& info) {
+    At9MultichannelConfig multichannel{};
+    const bool isMultichannel = ParseMultichannelConfig(configData, multichannel);
+    unsigned char config[ATRAC9_CONFIG_DATA_SIZE];
+    std::memcpy(config, isMultichannel ? multichannel.monoConfig : configData, sizeof(config));
+    void* decoder = Atrac9GetHandle();
+    const bool valid = Atrac9InitDecoder(decoder, config) == 0;
+    if (valid) Atrac9GetCodecInfo(decoder, &info);
+    Atrac9ReleaseHandle(decoder);
+    if (!valid) return false;
+    if (isMultichannel) {
+        info.channels = static_cast<int>(multichannel.channels);
+        info.channelConfigIndex = -1;
+        info.superframeSize = static_cast<int>(multichannel.channels * multichannel.frameBytes * multichannel.framesInSuperframe);
+    }
+    std::memcpy(info.configData, configData, ATRAC9_CONFIG_DATA_SIZE);
+    return true;
+}
+
 // decoder handle keeps its position within the superframe, which a re-initialization does not clear.
 bool ResetDecoder(Instance& instance) {
     if (instance.decoder) Atrac9ReleaseHandle(instance.decoder);
-    instance.decoder = Atrac9GetHandle();
+    instance.decoder = nullptr;
+    for (void* channelDecoder : instance.channelDecoders) Atrac9ReleaseHandle(channelDecoder);
+    instance.channelDecoders.clear();
     instance.superframeRemaining = 0;
     instance.frameInSuperframe = 0;
     unsigned char config[ATRAC9_CONFIG_DATA_SIZE];
     std::memcpy(config, instance.info.configData, sizeof(config));
-    return Atrac9InitDecoder(instance.decoder, config) == 0;
+    At9MultichannelConfig multichannel{};
+    if (!ParseMultichannelConfig(config, multichannel)) {
+        instance.decoder = Atrac9GetHandle();
+        return Atrac9InitDecoder(instance.decoder, config) == 0;
+    }
+    instance.channelBytes.assign(multichannel.channels, 0);
+    for (std::uint32_t channel = 0; channel < multichannel.channels; ++channel) {
+        instance.channelDecoders.push_back(Atrac9GetHandle());
+        if (Atrac9InitDecoder(instance.channelDecoders.back(), multichannel.monoConfig) != 0) return false;
+    }
+    return true;
+}
+
+bool HasAt9Decoder(const Instance& instance) {
+    return instance.decoder || !instance.channelDecoders.empty();
+}
+
+int DecodeAt9Block(void* decoder, std::uint32_t encoding, const std::uint8_t* data, int size, std::uint8_t* pcm, int* used) {
+    switch (encoding) {
+    case 0: return Atrac9Decode(decoder, data, size, reinterpret_cast<short*>(pcm), used, 0);
+    case 1: return Atrac9DecodeS32(decoder, data, size, reinterpret_cast<int*>(pcm), used, 0);
+    default: return Atrac9DecodeF32(decoder, data, size, reinterpret_cast<float*>(pcm), used, 0);
+    }
+}
+
+constexpr int AT9_MULTICHANNEL_BLOCK_OVERRUN = 0x7F000001;
+
+int DecodeAt9Frame(Instance& instance, const std::uint8_t* data, int size, std::uint8_t* pcm, std::uint32_t encoding, std::size_t sampleBytes, int* used) {
+    if (instance.channelDecoders.empty()) return DecodeAt9Block(instance.decoder, encoding, data, size, pcm, used);
+    const std::size_t channels = instance.channelDecoders.size();
+    const auto frameSamples = static_cast<std::size_t>(instance.info.frameSamples);
+    const auto framesInSuperframe = static_cast<std::uint32_t>(std::max(1, instance.info.framesInSuperframe));
+    const auto budget = static_cast<std::uint32_t>(instance.info.superframeSize / static_cast<int>(channels));
+    const bool lastFrame = instance.frameInSuperframe + 1 >= framesInSuperframe;
+    if (instance.frameInSuperframe == 0) std::fill(instance.channelBytes.begin(), instance.channelBytes.end(), 0u);
+    instance.blockPcm.resize(frameSamples * sampleBytes);
+    int offset = 0;
+    for (std::size_t channel = 0; channel < channels; ++channel) {
+        const std::uint32_t left = budget - std::min(budget, instance.channelBytes[channel]);
+        const int available = std::min(static_cast<int>(left), size - offset);
+        if (available <= 0) return AT9_MULTICHANNEL_BLOCK_OVERRUN;
+        int blockUsed = 0;
+        const int status = DecodeAt9Block(instance.channelDecoders[channel], encoding, data + offset, available, instance.blockPcm.data(), &blockUsed);
+        if (status != 0) return status;
+        if (blockUsed <= 0 || blockUsed > available) return AT9_MULTICHANNEL_BLOCK_OVERRUN;
+        const std::uint32_t blockBytes = lastFrame ? left : static_cast<std::uint32_t>(blockUsed);
+        if (static_cast<int>(blockBytes) > size - offset) return AT9_MULTICHANNEL_BLOCK_OVERRUN;
+        for (std::size_t sample = 0; sample < frameSamples; ++sample) {
+            std::memcpy(pcm + (sample * channels + channel) * sampleBytes, instance.blockPcm.data() + sample * sampleBytes, sampleBytes);
+        }
+        instance.channelBytes[channel] += blockBytes;
+        offset += static_cast<int>(blockBytes);
+    }
+    *used = offset;
+    return 0;
 }
 
 void OpenOpus(Instance& instance);
@@ -274,6 +377,7 @@ std::int32_t InitializeInstance(Instance& instance, const std::uint8_t* paramete
         instance.opusPending.clear();
         instance.initialized = true;
         instance.totalDecodedSamples = 0;
+        instance.segmentSamples = 0;
         instance.gapless = {};
         return 0;
     }
@@ -283,13 +387,15 @@ std::int32_t InitializeInstance(Instance& instance, const std::uint8_t* paramete
     }
     if (size < ATRAC9_CONFIG_DATA_SIZE) return AJM_RESULT_INVALID_PARAMETER;
     std::memcpy(instance.info.configData, parameters, ATRAC9_CONFIG_DATA_SIZE);
-    if (!ResetDecoder(instance)) {
+    std::uint8_t config[ATRAC9_CONFIG_DATA_SIZE];
+    std::memcpy(config, parameters, sizeof(config));
+    if (!ResetDecoder(instance) || !DescribeAt9Config(config, instance.info)) {
         instance.initialized = false;
         return AJM_RESULT_INVALID_PARAMETER;
     }
-    Atrac9GetCodecInfo(instance.decoder, &instance.info);
     instance.initialized = true;
     instance.totalDecodedSamples = 0;
+    instance.segmentSamples = 0;
     instance.gapless = {};
     return 0;
 }
@@ -443,9 +549,10 @@ void EmitFrame(Instance& instance, PcmOutputs& outputs, const std::uint8_t* pcm,
         count -= skip;
     }
     if (instance.gapless.totalSamples != 0) {
-        const std::uint64_t remaining = instance.gapless.totalSamples > instance.totalDecodedSamples ? instance.gapless.totalSamples - instance.totalDecodedSamples : 0;
+        const std::uint64_t remaining = instance.gapless.totalSamples > instance.segmentSamples ? instance.gapless.totalSamples - instance.segmentSamples : 0;
         count = static_cast<std::size_t>(std::min<std::uint64_t>(count, remaining));
     }
+    instance.segmentSamples += count;
     instance.totalDecodedSamples += count;
     if (!Resampling(instance)) {
         outputs.Emit(pcm + first * channels * sampleBytes, count * channels * sampleBytes);
@@ -525,7 +632,9 @@ void RunAt9(Instance& instance, const JobHeader& job, const AjmBuffer* inputs, c
     const auto superframeSize = static_cast<std::size_t>(instance.info.superframeSize);
     const auto framesInSuperframe = static_cast<std::uint32_t>(std::max(1, instance.info.framesInSuperframe));
     if (Resampling(instance)) ResamplerProduce(instance, pcmOutputs, channels, encoding, sampleBytes);
+    const auto segmentEnded = [&] { return instance.gapless.totalSamples != 0 && instance.segmentSamples >= instance.gapless.totalSamples; };
     for (;;) {
+        if (segmentEnded()) break;
         if (instance.superframeRemaining == 0) consumed += RiffDataOffset(input.data() + consumed, input.size() - consumed);
         const std::size_t needed = instance.superframeRemaining == 0 ? superframeSize : instance.superframeRemaining;
         if (input.size() - consumed < needed) {
@@ -541,11 +650,7 @@ void RunAt9(Instance& instance, const JobHeader& job, const AjmBuffer* inputs, c
             instance.frameInSuperframe = 0;
         }
         int used = 0;
-        switch (encoding) {
-        case 0: decodeStatus = Atrac9Decode(instance.decoder, input.data() + consumed, static_cast<int>(instance.superframeRemaining), reinterpret_cast<short*>(pcm.data()), &used, 0); break;
-        case 1: decodeStatus = Atrac9DecodeS32(instance.decoder, input.data() + consumed, static_cast<int>(instance.superframeRemaining), reinterpret_cast<int*>(pcm.data()), &used, 0); break;
-        default: decodeStatus = Atrac9DecodeF32(instance.decoder, input.data() + consumed, static_cast<int>(instance.superframeRemaining), reinterpret_cast<float*>(pcm.data()), &used, 0); break;
-        }
+        decodeStatus = DecodeAt9Frame(instance, input.data() + consumed, static_cast<int>(instance.superframeRemaining), pcm.data(), encoding, sampleBytes, &used);
         if (decodeStatus != 0 || used <= 0 || static_cast<std::uint32_t>(used) > instance.superframeRemaining) {
             result |= AJM_RESULT_INVALID_DATA;
             // The decoder tracks its position in the superframe; a fresh one starts the next superframe.
@@ -561,8 +666,8 @@ void RunAt9(Instance& instance, const JobHeader& job, const AjmBuffer* inputs, c
         ++frames;
 
         EmitFrame(instance, pcmOutputs, pcm.data(), frameSamples, channels, sampleBytes);
-        if ((job.flags & RUN_MULTIPLE_FRAMES) == 0) break;
     }
+    if (segmentEnded()) instance.segmentSamples = 0;
 
     if (TraceEnabled()) {
         std::fprintf(stderr, "[ajm] instance %u run flags 0x%llx: %zu input bytes in %u buffers, %zu output bytes in %u buffers, sideband %llu bytes; superframe %d (%d frames), %d channels, %d samples/frame, %d Hz, config %02x %02x %02x %02x -> result 0x%x, decoder status 0x%x, %u frames, consumed %zu, produced %zu, total samples %llu, gapless total %u skip %u skipped %u, input",
@@ -961,8 +1066,9 @@ void RunOpus(Instance& instance, const JobHeader& job, const AjmBuffer* inputs, 
 
 void ClearContext(Instance& instance) {
     instance.totalDecodedSamples = 0;
+    instance.segmentSamples = 0;
     instance.gapless.skippedSamples = 0;
-    if (instance.decoder && instance.initialized) ResetDecoder(instance);
+    if (HasAt9Decoder(instance) && instance.initialized) ResetDecoder(instance);
     if (instance.mp3) avcodec_flush_buffers(instance.mp3);
     if (instance.opus) avcodec_flush_buffers(instance.opus);
     instance.opusPending.clear();
@@ -1035,7 +1141,10 @@ void Execute(const JobHeader& job, const AjmBuffer* inputs, const AjmBuffer* out
         AJM_TRACE("[ajm] instance %u set gapless decode: total %u, skip %u, reset %llu (sideband %llu bytes)\n", job.instance, gapless.totalSamples, gapless.skipSamples, static_cast<unsigned long long>(job.flags), static_cast<unsigned long long>(job.sidebandSize));
         instance->gapless.totalSamples = gapless.totalSamples;
         instance->gapless.skipSamples = gapless.skipSamples;
-        if (job.flags) instance->gapless.skippedSamples = 0;
+        if (job.flags) {
+            instance->gapless.skippedSamples = 0;
+            instance->segmentSamples = 0;
+        }
         WriteResult(job.sideband, job.sidebandSize, 0);
         break;
     }
@@ -1150,13 +1259,10 @@ int APS5_VABI sceAjmInstanceDestroy(uint32_t context, uint32_t instance) {
 
 int APS5_VABI sceAjmDecAt9ParseConfigData(const void* config_data, AjmDecAt9ConfigDataInfo* config_info) {
     if (!config_data || !config_info) return SCE_AJM_ERROR_INVALID_PARAMETER;
-    void* decoder = Atrac9GetHandle();
-    unsigned char config[ATRAC9_CONFIG_DATA_SIZE];
+    std::uint8_t config[ATRAC9_CONFIG_DATA_SIZE];
     std::memcpy(config, config_data, sizeof(config));
-    const bool valid = Atrac9InitDecoder(decoder, config) == 0;
     Atrac9CodecInfo info{};
-    if (valid) Atrac9GetCodecInfo(decoder, &info);
-    Atrac9ReleaseHandle(decoder);
+    const bool valid = DescribeAt9Config(config, info);
     AJM_TRACE("[ajm] parse config %02x %02x %02x %02x -> %s, %d channels, %d Hz, superframe %d bytes (%d frames of %d samples)\n", config[0], config[1], config[2], config[3], valid ? "ok" : "invalid", info.channels, info.samplingRate, info.superframeSize, info.framesInSuperframe, info.frameSamples);
     if (!valid) return SCE_AJM_ERROR_INVALID_PARAMETER;
     config_info->channels = static_cast<std::uint32_t>(info.channels);
@@ -1234,12 +1340,21 @@ int APS5_VABI sceAjmBatchJobSetResampleParameters(AjmBatchInfo* info, uint32_t i
     return Append(info, header, nullptr, nullptr);
 }
 
+int APS5_VABI sceAjmBatchJobSetResampleParametersEx(AjmBatchInfo* info, uint32_t instance, float ratio_start, float ratio_change_per_sample, uint32_t flags, void* result) {
+    if (ratio_change_per_sample != 0.0f) throw std::runtime_error("sceAjmBatchJobSetResampleParametersEx: a ratio change per sample is unsupported");
+    return sceAjmBatchJobSetResampleParameters(info, instance, ratio_start, flags, result);
+}
+
 int APS5_VABI sceAjmBatchJobGetResampleInfo(AjmBatchInfo* info, uint32_t instance, void* result) {
     return Append(info, MakeHeader(JobKind::GetResampleInfo, instance, result, sizeof(SidebandResult) + sizeof(SidebandResampleInfo)), nullptr, nullptr);
 }
 
 int APS5_VABI sceAjmBatchJobDecode(AjmBatchInfo* info, uint32_t instance, const void* bitstream_input, size_t bitstream_input_size, void* pcm_output, size_t pcm_output_size, void* result) {
     return sceAjmBatchJobRun(info, instance, SIDEBAND_STREAM, bitstream_input, bitstream_input_size, pcm_output, pcm_output_size, result, sizeof(SidebandResult) + sizeof(SidebandStream));
+}
+
+int APS5_VABI sceAjmBatchJobDecodeSplit(AjmBatchInfo* info, uint32_t instance, const AjmBuffer* input_buffers, size_t input_buffers_num, const AjmBuffer* output_buffers, size_t output_buffers_num, void* result) {
+    return sceAjmBatchJobRunSplit(info, instance, SIDEBAND_STREAM, input_buffers, input_buffers_num, output_buffers, output_buffers_num, result, sizeof(SidebandResult) + sizeof(SidebandStream));
 }
 
 int APS5_VABI sceAjmBatchJobDecodeSingle(AjmBatchInfo* info, uint32_t instance, const void* bitstream_input, size_t bitstream_input_size, void* pcm_output, size_t pcm_output_size, void* result) {

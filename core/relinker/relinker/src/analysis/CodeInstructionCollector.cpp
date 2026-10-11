@@ -5,10 +5,13 @@
 #include <codegen/CodegenException.hpp>
 #include <io/BufferUtils.hpp>
 #include <algorithm>
+#include <bit>
 #include <iterator>
 #include <limits>
 #include <map>
+#include <span>
 #include <string>
+#include <unordered_set>
 
 namespace Relinker {
 
@@ -21,6 +24,11 @@ public:
         const auto found = Values.find(address);
         if (found == Values.end()) return std::nullopt;
         return found->second;
+    }
+    std::vector<Domain::VirtualAddress> Targets() const override {
+        std::vector<Domain::VirtualAddress> result;
+        for (const auto& [slot, target] : Values) result.push_back(target);
+        return result;
     }
 };
 
@@ -80,6 +88,11 @@ std::set<Domain::VirtualAddress> CodeInstructionCollector::Collect(const std::ve
     std::set<std::uint64_t> roots;
     std::map<std::uint64_t, std::uint64_t> functions;
     const auto addRoot = [&](std::uint64_t address) { if (isCode(address)) roots.insert(address); };
+    const auto addAddressTakenRoot = [&](std::uint64_t address, const std::uint8_t* code, const Codegen::DecodedInstructionInfo& info) {
+        if (!info.HasRipRelativeDisp || code[info.OpcodeOffset] != 0x8d || !(info.RexPrefix & 8)) return;
+        const auto displacement = std::bit_cast<std::int32_t>(Io::ReadU32(bytes, fileOffset(address, info.Length) + info.RipRelativeDispOffset));
+        addRoot(address + info.Length + static_cast<std::int64_t>(displacement));
+    };
     const auto addFunction = [&](std::uint64_t begin, std::uint64_t size, bool symbolAlias) {
         if (size == 0) return;
         if (!isCode(begin) || size > std::numeric_limits<std::uint64_t>::max() - begin)
@@ -201,6 +214,7 @@ std::set<Domain::VirtualAddress> CodeInstructionCollector::Collect(const std::ve
             if (info.Length == 0 || info.Length > end - address)
                 throw Domain::RelinkerException("Code analysis: instruction crosses function boundary", address);
             instructions.insert(address);
+            addAddressTakenRoot(address, bytes.data() + offset + address - begin, info);
             if (info.HasBranchTarget && !info.HasRipRelativeDisp) {
                 const auto target = address + info.Length + static_cast<std::uint64_t>(info.BranchDisp);
                 staticTargets.insert(target);
@@ -220,7 +234,15 @@ std::set<Domain::VirtualAddress> CodeInstructionCollector::Collect(const std::ve
             while (address < size && !paddedStart(address)) address += 16;
             return address;
         };
+        bool afterTransfer = false;
         for (std::size_t position = nextPaddedStart(0); position < size;) {
+            const auto aligned = (position + 15) & ~std::size_t{15};
+            const bool zeroPadding = afterTransfer && aligned != position && aligned <= size && std::all_of(text + position, text + aligned, [](const std::uint8_t value) { return value == 0; });
+            afterTransfer = false;
+            if (zeroPadding) {
+                position = aligned;
+                continue;
+            }
             if (position + 1 < size && text[position] == 0 && text[position + 1] == 0) {
                 position = nextPaddedStart(position);
                 continue;
@@ -244,6 +266,7 @@ std::set<Domain::VirtualAddress> CodeInstructionCollector::Collect(const std::ve
             }
             const auto opcode = position + info.OpcodeOffset;
             if (info.SegmentPrefix == 0x64 && opcode + 2 < next && (text[opcode + 1] & 0xc7) == 0x04 && text[opcode + 2] == 0x25) addRoot(header.MappedAddress + position);
+            afterTransfer = info.FlowKind != Codegen::ControlFlowKind::Sequential && info.FlowKind != Codegen::ControlFlowKind::ConditionalBranch;
             position = next;
         }
     }
@@ -266,20 +289,25 @@ std::set<Domain::VirtualAddress> CodeInstructionCollector::Collect(const std::ve
         }
     }
     std::size_t previousRoots = 0;
+    std::unordered_set<Domain::VirtualAddress> decodedInstructions;
+    std::vector<std::unordered_set<Domain::VirtualAddress>> sectionReachable(headers.size());
     do {
         previousRoots = roots.size();
-        for (const auto& header : headers) {
+        for (std::size_t i = 0; i < headers.size(); ++i) {
+            const auto& header = headers[i];
             if (header.Type != 1 || (header.Flags & 1) == 0 || header.FileSize == 0) continue;
             range(header.Offset, header.FileSize);
             std::vector<std::uint64_t> entries;
             for (const auto root : roots) if (root >= header.MappedAddress && root - header.MappedAddress < header.FileSize) entries.push_back(root);
             if (entries.empty()) continue;
-            const std::vector<std::uint8_t> text(bytes.begin() + header.Offset, bytes.begin() + header.Offset + header.FileSize);
-            const auto graph = UnusedNidFilter::BuildControlFlowGraph(text, header.MappedAddress, entries.front(), entries, pointers);
+            const std::span<const std::uint8_t> text(bytes.data() + header.Offset, header.FileSize);
+            const auto graph = UnusedNidFilter::BuildControlFlowGraph(text, header.MappedAddress, entries.front(), entries, pointers, true, sectionReachable[i]);
             for (const auto address : graph->ReachableVaddrs()) {
+                if (!decodedInstructions.insert(address).second) continue;
                 instructions.insert(address);
                 const auto offset = address - header.MappedAddress;
                 const auto info = decoder.DecodeInstruction(text.data() + offset, text.size() - offset);
+                addAddressTakenRoot(address, text.data() + offset, info);
                 if (info.HasBranchTarget && !info.HasRipRelativeDisp) addRoot(static_cast<std::uint64_t>(static_cast<std::int64_t>(address + info.Length) + info.BranchDisp));
             }
         }

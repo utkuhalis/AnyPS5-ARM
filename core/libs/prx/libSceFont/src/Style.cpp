@@ -51,6 +51,30 @@ int ReadFontStyle(FontHandle fontHandle, bool checkMagic, Getter&& getter) {
     return rc;
 }
 
+template<typename Access>
+int AccessFontSettings(FontHandle fontHandle, Access&& access) {
+    return ReadFontStyle(fontHandle, true, [&](FontHandleNative*) {
+        FontState* state = TryGetState(fontHandle);
+        return state ? access(*state) : SCE_FONT_ERROR_INVALID_FONT_HANDLE;
+    });
+}
+
+int SetFontSetting(FontHandle fontHandle, std::map<int, int> FontState::*table, int key, int value) {
+    return AccessFontSettings(fontHandle, [&](FontState& state) {
+        (state.*table)[key] = value;
+        return SCE_FONT_OK;
+    });
+}
+
+int GetFontSetting(FontHandle fontHandle, std::map<int, int> FontState::*table, int key, int* value) {
+    if (!value) return SCE_FONT_ERROR_INVALID_PARAMETER;
+    return AccessFontSettings(fontHandle, [&](FontState& state) {
+        const auto found = (state.*table).find(key);
+        *value = found == (state.*table).end() ? 0 : found->second;
+        return SCE_FONT_OK;
+    });
+}
+
 void ResetScaleOutputs(float* w, float* h) {
     if (w) *w = 0.0f;
     if (h) *h = 0.0f;
@@ -76,6 +100,22 @@ float ClampWeightDelta(float scale) {
 #pragma GCC visibility push(default)
 
 extern "C" {
+
+int APS5_VABI sceFontSetScriptLanguage(FontHandle fontHandle, int fontScript, int fontLanguage) {
+    return SetFontSetting(fontHandle, &FontState::scriptLanguages, fontScript, fontLanguage);
+}
+
+int APS5_VABI sceFontGetScriptLanguage(FontHandle fontHandle, int fontScript, int* fontLanguage) {
+    return GetFontSetting(fontHandle, &FontState::scriptLanguages, fontScript, fontLanguage);
+}
+
+int APS5_VABI sceFontSetTypographicDesign(FontHandle fontHandle, int typographic, int feature) {
+    return SetFontSetting(fontHandle, &FontState::typographicFeatures, typographic, feature);
+}
+
+int APS5_VABI sceFontGetTypographicDesign(FontHandle fontHandle, int typographic, int* feature) {
+    return GetFontSetting(fontHandle, &FontState::typographicFeatures, typographic, feature);
+}
 
 int APS5_VABI sceFontSetScalePixel(FontHandle fontHandle, float w, float h) {
     return UpdateFontStyle(fontHandle, [&](FontHandleNative* font) {

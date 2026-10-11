@@ -16,7 +16,6 @@ namespace {
 using AgcDriver::Graphics::Require;
 using ShaderRecompiler::ShaderStage;
 
-constexpr std::uint32_t ArithmeticCapability = 63;
 constexpr std::uint32_t Sentinel = 0xdeadbeefu;
 constexpr std::uint32_t Width = 192;
 constexpr std::uint32_t Height = 128;
@@ -106,13 +105,13 @@ void Draw(AgcDriver::VulkanDevice& device, std::span<const std::uint32_t> pixelC
         {ShaderStage::Fragment, reinterpret_cast<std::uintptr_t>(pixelCode.data()), pixelCode, 0, {}},
         {64u, 0, pixelUserData, std::nullopt, pixel, std::nullopt, pixelMemory},
         target,
-        {0, 0, vertexPush, 128 - vertexPush}
+        PixelPushLayout(vertexPush, target)
     };
     fragment.useCache = false;
     const auto pixelResult = ShaderRecompiler::Recompile(fragment);
     const std::array<AgcDriver::Graphics::CompiledShader, 2> shaders{{
         {ShaderStage::Vertex, &vertexResult, 0},
-        {ShaderStage::Fragment, &pixelResult, vertexPush}
+        {ShaderStage::Fragment, &pixelResult, PixelPushOffset(vertexPush, target)}
     }};
 
     AgcDriver::Graphics::State state{};
@@ -170,7 +169,7 @@ int main() {
         const auto device = OpenVulkanTestDevice();
         if (!device) return VulkanTestSkipped;
         const auto target = device->Target();
-        if (std::find(target.supportedCapabilities.begin(), target.supportedCapabilities.end(), ArithmeticCapability) == target.supportedCapabilities.end()) {
+        if (!TargetHasCapability(target, spv::CapabilityGroupNonUniformArithmetic)) {
             std::puts("skipped, the device has no subgroup arithmetic");
             return VulkanTestSkipped;
         }

@@ -4,10 +4,14 @@
 #include "prx/libc/include/GuestArena.hpp"
 #include "prx/libkernel/File/include/File.hpp"
 #include "prx/libkernel/File/include/DirectoryDescriptor.hpp"
+#include "prx/libkernel/File/include/FileLock.hpp"
+#include "prx/libkernel/Socket/include/SocketRuntime.hpp"
+#include "prx/libkernel/File/include/RandomDevice.hpp"
 #include "prx/libkernel/KernelErrors.hpp"
 #include "SceTypes.hpp"
 
 #include <cerrno>
+#include <cstdarg>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -43,7 +47,15 @@ static int NativeClose(int fd) {
     return result;
 }
 static int NativeUnlink(const std::filesystem::path& p) {
-    return ::_wunlink(p.wstring().c_str());
+    const auto path = p.wstring();
+    struct _stat64 status{};
+    const bool unlocked = ::_wstat64(path.c_str(), &status) == 0 && (status.st_mode & _S_IFMT) == _S_IFREG &&
+        !(status.st_mode & _S_IWRITE) && ::_wchmod(path.c_str(), _S_IREAD | _S_IWRITE) == 0;
+    if (::_wunlink(path.c_str()) == 0) return 0;
+    const int error = errno;
+    if (unlocked) ::_wchmod(path.c_str(), _S_IREAD);
+    errno = error;
+    return -1;
 }
 static int MapFlags(int sceFlags) {
     int f = 0;
@@ -61,6 +73,7 @@ static int MapFlags(int sceFlags) {
 }
 #else
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 static int NativeOpen(const std::filesystem::path& p, int nativeFlags, std::uint16_t mode) {
     return ::open(p.c_str(), nativeFlags, static_cast<mode_t>(mode));
@@ -95,6 +108,10 @@ static int MapFlags(int sceFlags) {
 }
 #endif
 
+extern "C" int* APS5_VABI __error_nid_postfix();
+extern "C" int APS5_VABI fcntl_nid_postfix(int descriptor, int command, ...);
+static constexpr int GuestSetFlags = 4;
+
 static int SceErrorFromErrno(int error) {
     constexpr int GuestEio = 5;
     const int guest = error > 0 && error <= 34 ? error : GuestEio;
@@ -105,12 +122,39 @@ extern "C" {
 
 int APS5_VABI sceKernelOpen(const char* path, int flags, std::uint16_t mode) {
     APS5_LOG_OUT("path=%s flags=0x%X nativeFlags=0x%X mode=0%o", path, flags, MapFlags(flags), mode);
+    if (path != nullptr && File::IsRandomDevicePath(path)) {
+        if ((flags & SCE_KERNEL_O_ACCMODE) != SCE_KERNEL_O_RDONLY) throw std::runtime_error(std::string(__func__) + ": writing to " + path + " is not implemented");
+        const int fd = File::OpenRandomDevice();
+        return fd < 0 ? SceErrorFromErrno(errno) : fd;
+    }
     auto native = ResolvePath_nid_no_patch(path);
+#ifdef _WIN32
+    if ((flags & (SCE_KERNEL_O_DIRECTORY | SCE_KERNEL_O_CREAT)) == SCE_KERNEL_O_DIRECTORY) {
+        std::error_code error;
+        const auto status = std::filesystem::status(native, error);
+        if (std::filesystem::exists(status) && !std::filesystem::is_directory(status)) return SceErrorFromErrno(ENOTDIR);
+    }
+#endif
     int fd = NativeOpen(native, MapFlags(flags), mode);
 #ifdef _WIN32
     if (fd < 0 && errno != ENOENT) {
         std::error_code error;
-        if (std::filesystem::is_directory(native, error)) fd = File::OpenDirectoryDescriptor(native);
+        if (std::filesystem::is_directory(native, error)) {
+            if ((flags & (SCE_KERNEL_O_CREAT | SCE_KERNEL_O_EXCL)) == (SCE_KERNEL_O_CREAT | SCE_KERNEL_O_EXCL)) errno = EEXIST;
+            else if ((flags & SCE_KERNEL_O_ACCMODE) != SCE_KERNEL_O_RDONLY || (flags & (SCE_KERNEL_O_CREAT | SCE_KERNEL_O_TRUNC))) errno = EISDIR;
+            else fd = File::OpenDirectoryDescriptor(native);
+        }
+    }
+#endif
+#ifdef __APPLE__
+    // macOS opens an existing directory under O_CREAT without O_EXCL; FreeBSD and Linux refuse it with EISDIR.
+    if (fd >= 0 && (flags & SCE_KERNEL_O_CREAT)) {
+        struct stat info{};
+        if (::fstat(fd, &info) == 0 && S_ISDIR(info.st_mode)) {
+            NativeClose(fd);
+            fd = -1;
+            errno = EISDIR;
+        }
     }
 #endif
     if (fd < 0) {
@@ -122,8 +166,10 @@ int APS5_VABI sceKernelOpen(const char* path, int flags, std::uint16_t mode) {
 }
 
 int APS5_VABI sceKernelClose(int d) {
+    File::ForgetRandomDevice(d);
 #ifdef _WIN32
     File::ForgetDirectoryDescriptor(d);
+    File::ForgetFileLock(d);
 #endif
     if (NativeClose(d) != 0) {
         if (errno == EBADF) return SCE_KERNEL_ERROR_EBADF;
@@ -133,11 +179,16 @@ int APS5_VABI sceKernelClose(int d) {
 }
 
 std::int64_t APS5_VABI sceKernelRead(int d, void* buf, std::size_t nbytes) {
+    if (d >= GuestSockets::FirstDescriptor) {
+        const auto n = GuestSockets::Read(d, buf, nbytes);
+        return n < 0 ? SceKernelError(*__error_nid_postfix()) : n;
+    }
     if (buf == nullptr) {
         throw std::invalid_argument(std::string(__func__) + ": buf is null");
     }
     const GuestArena::HostWrite destination(buf, nbytes);
     if (!destination.Open()) errno = EFAULT;
+    else if (File::ReadRandomDevice(d, buf, nbytes)) return static_cast<std::int64_t>(nbytes);
     auto n = destination.Open() ? NativeRead(d, buf, nbytes) : -1;
     if (n < 0) {
         throw std::runtime_error(std::string(__func__) + ": read failed, fd=" + std::to_string(d) + ", errno=" + std::to_string(errno));
@@ -146,6 +197,10 @@ std::int64_t APS5_VABI sceKernelRead(int d, void* buf, std::size_t nbytes) {
 }
 
 std::int64_t APS5_VABI sceKernelWrite(int d, const void* buf, std::size_t nbytes) {
+    if (d >= GuestSockets::FirstDescriptor) {
+        const auto n = GuestSockets::Write(d, buf, nbytes);
+        return n < 0 ? SceKernelError(*__error_nid_postfix()) : n;
+    }
     if (buf == nullptr) {
         throw std::invalid_argument(std::string(__func__) + ": buf is null");
     }
@@ -174,11 +229,21 @@ int APS5_VABI sceKernelStat(const char* path, FileStat* sb) {
     if (sb == nullptr) {
         throw std::invalid_argument(std::string(__func__) + ": sb is null");
     }
-    const auto native = ResolvePath_nid_no_patch(path);
-    std::error_code error;
-    if (!std::filesystem::exists(native, error)) {
+    std::filesystem::path native;
+    try {
+        native = ResolvePath_nid_no_patch(path);
+    } catch (const std::filesystem::filesystem_error&) {
         return SceErrorFromErrno(2);
     }
+    std::error_code error;
+    constexpr int GuestEnotdir = 20;
+    const auto status = std::filesystem::status(native, error);
+    if (error == std::errc::not_a_directory) return SceErrorFromErrno(GuestEnotdir);
+    if (!std::filesystem::exists(status)) {
+        return SceErrorFromErrno(2);
+    }
+    const std::string_view guestPath(path);
+    if (!guestPath.empty() && guestPath.back() == '/' && !std::filesystem::is_directory(status)) return SceErrorFromErrno(GuestEnotdir);
     File::FillFileStat(native, sb);
     return 0;
 }
@@ -188,6 +253,9 @@ int APS5_VABI sceKernelUnlink(const char* path) {
         throw std::invalid_argument(std::string(__func__) + ": path is null");
     }
     auto native = ResolvePath_nid_no_patch(path);
+    constexpr int GuestEperm = 1;
+    std::error_code error;
+    if (std::filesystem::is_directory(std::filesystem::symlink_status(native, error))) return SceErrorFromErrno(GuestEperm);
     if (NativeUnlink(native) != 0) {
         return SceErrorFromErrno(errno);
     }
@@ -195,9 +263,29 @@ int APS5_VABI sceKernelUnlink(const char* path) {
     return 0;
 }
 
-int APS5_VABI sceKernelFcntl() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceKernelFcntl(int d, int command, ...) {
+    if (d < GuestSockets::FirstDescriptor) {
+        if (!DescriptorIsOpen_nid_no_patch(d)) return SCE_KERNEL_ERROR_EBADF;
+        throw std::runtime_error(std::string(__func__) + ": file descriptors are not implemented, fd=" + std::to_string(d));
+    }
+    int result;
+    if (command == GuestSetFlags) {
+#ifdef _WIN32
+        __builtin_sysv_va_list arguments;
+        __builtin_sysv_va_start(arguments, command);
+        const int flags = __builtin_va_arg(arguments, int);
+        __builtin_sysv_va_end(arguments);
+#else
+        std::va_list arguments;
+        va_start(arguments, command);
+        const int flags = va_arg(arguments, int);
+        va_end(arguments);
+#endif
+        result = fcntl_nid_postfix(d, command, flags);
+    } else {
+        result = fcntl_nid_postfix(d, command);
+    }
+    return result < 0 ? SceKernelError(*__error_nid_postfix()) : result;
 }
 
 }

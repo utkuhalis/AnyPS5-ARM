@@ -2,6 +2,7 @@
 #define CORE_LIBS_PRX_LIBSCEAGCDRIVER_GRAPHICS_INCLUDE_PIPELINE_HPP
 
 #include "prx/libSceAgcDriver/Graphics/include/ShaderResources.hpp"
+#include "prx/libSceAgcDriver/Graphics/include/PipelineLibrary.hpp"
 #include <set>
 
 namespace AgcDriver::Graphics {
@@ -19,12 +20,14 @@ public:
     Framebuffer(const Framebuffer&) = delete;
     Framebuffer& operator=(const Framebuffer&) = delete;
     VkFramebuffer Handle() const { return framebuffer; }
+    std::span<const VkImageView> Views() const { return views; }
     // Forgets the handle without destroying it (the device it belongs to is already gone).
     void Abandon() noexcept;
 
 private:
     Context context;
     VkFramebuffer framebuffer = VK_NULL_HANDLE;
+    std::vector<VkImageView> views;
 };
 
 // The shader modules, layout, render pass and VkPipeline of one draw configuration. Viewport,
@@ -48,6 +51,9 @@ public:
     // The same inside a render pass another pipeline of the same attachments began (compatible by
     // construction: the attachment formats alone decide).
     void Continue(VkCommandBuffer commands, const State& state) const;
+    bool SplitsFaces() const { return backFaces != VK_NULL_HANDLE; }
+    bool Optimized() const { return optimized != nullptr && optimized->handle.load() != VK_NULL_HANDLE; }
+    void ContinueBackFaces(VkCommandBuffer commands, const State& state) const;
     void PushConstants(VkCommandBuffer commands, VkShaderStageFlags stages, std::span<const std::byte, PipelinePushConstantBytes> bytes) const;
     // Forgets the Vulkan objects without destroying them: for entries of a device that is already gone.
     void Abandon() noexcept;
@@ -60,15 +66,23 @@ private:
         std::shared_ptr<Framebuffer> framebuffer;
     };
     void release() noexcept;
+    void setLibraryState(VkCommandBuffer commands, const State& state) const;
     Context context;
     std::vector<VkShaderModule> _modules;
     VkPipelineLayout layout = VK_NULL_HANDLE;
     VkRenderPass renderPass = VK_NULL_HANDLE;
     VkPipeline pipeline = VK_NULL_HANDLE;
+    VkPipeline backFaces = VK_NULL_HANDLE;
     std::size_t attachments = 0;
     std::size_t colorAttachments = 0;
     bool depthBounds = false;
     bool depthBias = false;
+    bool libraries = false;
+    std::shared_ptr<OptimizedPipeline> optimized;
+    bool dynamicRendering = false;
+    VkFormat depthFormat = VK_FORMAT_UNDEFINED;
+    VkImageLayout attachmentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    std::vector<std::uint32_t> colorSlots;
     std::vector<CachedFramebuffer> framebuffers;
 };
 
@@ -83,13 +97,15 @@ std::shared_ptr<Pipeline> CachedPipeline(const Context& context, const State& st
 // entries of a gone device are recognised by their buffer pool (made and reset with the device, so
 // it tells device instances apart when the loader reuses a VkDevice handle) and forgotten unused.
 void ClearCachedPipelines(VkDevice device);
+bool HasStencil(VkFormat format);
 // Device limit checks of the viewport, which is dynamic state and so no longer checked by Pipeline.
 void ValidateViewport(const Context& context, const VkViewport& viewport);
 void ValidateDepthBounds(const Context& context, const State& state);
+void ValidateProvokingVertex(const Context& context, const State& state, std::span<const CompiledShader> shaders = {});
 
 void ValidateShaderPair(const ShaderRecompiler::RecompileResult& vertex, const ShaderRecompiler::RecompileResult& fragment);
 // Returns the color attachment locations the pixel shader writes.
-std::set<std::uint32_t> ValidateShaders(std::span<const CompiledShader> shaders, const State& state, const VkPhysicalDeviceSubgroupProperties& subgroup, bool fragmentShaderBarycentric, bool descriptorIndexing = false, bool imageInt64Atomics = false, bool geometryShader = false, bool sampleRateShading = false);
+std::set<std::uint32_t> ValidateShaders(std::span<const CompiledShader> shaders, const State& state, const VkPhysicalDeviceSubgroupProperties& subgroup, bool fragmentShaderBarycentric, bool descriptorIndexing = false, bool imageInt64Atomics = false, bool geometryShader = false, bool sampleRateShading = false, bool bufferInt64Atomics = false);
 
 }
 

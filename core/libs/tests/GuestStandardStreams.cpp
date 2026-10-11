@@ -9,6 +9,8 @@
 #include <iterator>
 #include <initializer_list>
 #include <chrono>
+#include <atomic>
+#include <thread>
 #ifndef _WIN32
 #include <unistd.h>
 #endif
@@ -39,14 +41,18 @@ int APS5_VABI __swbuf_nid_postfix(int, FileStream*);
 int APS5_VABI ungetc_nid_postfix(int, FileStream*);
 char* APS5_VABI fgets_nid_postfix(char*, int, FileStream*);
 int APS5_VABI feof_nid_postfix(FileStream*);
+int APS5_VABI ferror_nid_postfix(FileStream*);
 int APS5_VABI fileno_nid_postfix(FileStream*);
 void APS5_VABI clearerr_nid_postfix(FileStream*);
+void APS5_VABI rewind_nid_postfix(FileStream*);
 int APS5_VABI setvbuf_nid_postfix(FileStream*, char*, int, std::size_t);
 void APS5_VABI setbuf_nid_postfix(FileStream*, char*);
 FileStream* APS5_VABI fdopen_nid_postfix(int, const char*);
 int APS5_VABI fclose_nid_postfix(FileStream*);
 int APS5_VABI _Getmbcurmax_nid_postfix();
 int APS5_VABI ___mb_cur_max_nid_postfix();
+void APS5_VABI flockfile_nid_postfix(FileStream*);
+void APS5_VABI funlockfile_nid_postfix(FileStream*);
 }
 static void Require(bool value) { if (!value) std::abort(); }
 static int APS5_VABI WriteFormatted(FileStream* stream, const char* format, ...) {
@@ -89,13 +95,42 @@ static bool CheckFileBytes(const std::string& filename, const std::string& expec
     return false;
 }
 
+static void CheckRewind() {
+    FileStream stream(std::tmpfile());
+    Require(fwrite_nid_postfix("ab", 1, 2, &stream) == 2);
+    *__error_nid_postfix() = 7;
+    rewind_nid_postfix(&stream);
+    Require(*__error_nid_postfix() == 7 && ftello_nid_postfix(&stream) == 0);
+    Require(fgetc_nid_postfix(&stream) == 'a' && ungetc_nid_postfix('z', &stream) == 'z');
+    rewind_nid_postfix(&stream);
+    Require(fgetc_nid_postfix(&stream) == 'a' && fgetc_nid_postfix(&stream) == 'b' && fgetc_nid_postfix(&stream) == EOF);
+    Require(feof_nid_postfix(&stream) != 0);
+    stream.SetEncodingError();
+    Require(ferror_nid_postfix(&stream) != 0);
+    rewind_nid_postfix(&stream);
+    Require(feof_nid_postfix(&stream) == 0 && ferror_nid_postfix(&stream) == 0 && fgetc_nid_postfix(&stream) == 'a');
+    stream.Close();
+#ifndef _WIN32
+    int pipeEnds[2];
+    Require(::pipe(pipeEnds) == 0);
+    Require(::write(pipeEnds[1], "p", 1) == 1);
+    ::close(pipeEnds[1]);
+    FileStream pipe(::fdopen(pipeEnds[0], "r"));
+    Require(fgetc_nid_postfix(&pipe) == 'p' && fgetc_nid_postfix(&pipe) == EOF && feof_nid_postfix(&pipe) != 0);
+    *__error_nid_postfix() = 0;
+    rewind_nid_postfix(&pipe);
+    Require(*__error_nid_postfix() == 29 && feof_nid_postfix(&pipe) == 0 && ferror_nid_postfix(&pipe) == 0);
+    pipe.Close();
+#endif
+}
+
 static bool CheckBinaryModes() {
     const auto directory = "anyps5-byte-stream-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
     Require(std::filesystem::create_directory(directory));
     const auto filename = directory + "/bytes";
     const std::string original("A\r\n\x1a" "B\0C", 7);
     const std::string written("D\n\x1a" "E\0F", 6);
-    const char* modes[] = {"r", "r+", "w", "w+", "a", "a+", "rb", "rb+", "r+b", "wb", "wb+", "w+b", "ab", "ab+", "a+b"};
+    const char* modes[] = {"r", "r+", "w", "w+", "a", "a+", "rb", "rb+", "r+b", "wb", "wb+", "w+b", "ab", "ab+", "a+b", "rt", "r+t", "wt", "w+e", "ae", "rbv"};
     bool correct = true;
     for (const auto* mode : modes) {
         for (const bool reopen : {false, true}) {
@@ -124,6 +159,20 @@ static bool CheckBinaryModes() {
             correct &= CheckFileBytes(filename, expected, mode, reopen);
         }
     }
+    for (const auto* mode : {"", "q", "tr", "rx", "rbx"}) {
+        FileStream redirected(std::tmpfile());
+        Require(fopen_nid_postfix(filename.c_str(), mode) == nullptr && *__error_nid_postfix() == 22);
+        Require(freopen_nid_postfix(filename.c_str(), mode, &redirected) == nullptr && *__error_nid_postfix() == 22);
+    }
+    Require(fopen_nid_postfix(filename.c_str(), "wx") == nullptr && *__error_nid_postfix() == 17);
+    FileStream* readOnly = fopen_nid_postfix(filename.c_str(), "rt+");
+    Require(readOnly != nullptr && fputc_nid_postfix('X', readOnly) == EOF);
+    Require(fclose_nid_postfix(readOnly) == 0);
+    Require(std::filesystem::remove(filename));
+    FileStream* created = fopen_nid_postfix(filename.c_str(), "wx");
+    Require(created != nullptr && fputc_nid_postfix('Y', created) == 'Y');
+    Require(fclose_nid_postfix(created) == 0);
+    correct &= CheckFileBytes(filename, "Y", "wx", false);
     Require(std::filesystem::remove(filename));
     Require(std::filesystem::remove(directory));
     return correct;
@@ -297,5 +346,24 @@ int main() {
     Require(freopen_nid_postfix(filename.c_str(), "rb", &failed) == nullptr);
     Require(*__error_nid_postfix() == 2);
     Require(failed.GuestState().flags == 0 && failed.GuestState().descriptor == -1);
+    FileStream locked(std::tmpfile());
+    flockfile_nid_postfix(&locked);
+    flockfile_nid_postfix(&locked);
+    std::atomic<bool> lockedWrite = false;
+    std::thread writer([&] {
+        Require(fputc_nid_postfix('B', &locked) == 'B');
+        lockedWrite = true;
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    Require(!lockedWrite && fputc_nid_postfix('A', &locked) == 'A');
+    funlockfile_nid_postfix(&locked);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    Require(!lockedWrite);
+    funlockfile_nid_postfix(&locked);
+    writer.join();
+    Require(lockedWrite && fseeko_nid_postfix(&locked, 0, SEEK_SET) == 0);
+    Require(fgetc_nid_postfix(&locked) == 'A' && fgetc_nid_postfix(&locked) == 'B');
+    locked.Close();
+    CheckRewind();
     return CheckBinaryModes() ? 0 : 1;
 }

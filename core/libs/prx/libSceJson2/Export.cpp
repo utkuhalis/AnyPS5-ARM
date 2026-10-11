@@ -573,6 +573,7 @@ void APS5_VABI _ZN3sce4Json6Object8iteratorD1Ev(ObjectIterator* self) { (void)se
 ObjectIterator* APS5_VABI _ZN3sce4Json6Object8iteratorppEv(ObjectIterator* self) { ++self->it; return self; }
 Pair* APS5_VABI _ZNK3sce4Json6Object8iteratordeEv(const ObjectIterator* self) { return &*self->it; }
 bool APS5_VABI _ZNK3sce4Json6Object8iteratorneERKS2_(const ObjectIterator* self, const ObjectIterator* other) { return self->it != other->it; }
+bool APS5_VABI _ZNK3sce4Json6Object5emptyEv(const Object* self) { return self->items->empty(); }
 std::size_t APS5_VABI _ZNK3sce4Json6Object4sizeEv(const Object* self) { return self->items->size(); }
 
 void APS5_VABI _ZN3sce4Json5ValueC1Ev(Value* self) { Construct(*self); }
@@ -779,7 +780,6 @@ int APS5_VABI _ZN3sce4Json17InitParameterRttiC1EPNS0_14AllocParamRttiEPvm(void) 
     NotImplemented_nid_no_patch(__func__);
     return 0;
 }
-
 struct InitParameter2 {
     void* allocator;
     void* userData;
@@ -816,4 +816,13 @@ int APS5_VABI _ZN3sce4Json12MemAllocator11notifyErrorEimPv(void) {
     return 0;
 }
 
+int APS5_VABI _ZN3sce4Json14InitParameter2C2Ev(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI _ZN3sce4Json18InitParameterRtti216setAllocatorRttiEPNS0_14AllocParamRttiEPv(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
 }

@@ -3,22 +3,24 @@ import json
 import os
 import re
 import subprocess
-from itertools import combinations
+from itertools import chain, combinations
 from pathlib import Path
+from urllib.parse import urlencode
 
 PARENT = 'if .parent then "\\(.parent.owner.login)/\\(.parent.name)" else .nameWithOwner end'
 EXPORT = re.compile(r"^\+.*\bAPS5_VABI\s+(\w+)\s*\(")
 DEPENDS = re.compile(r'Depends on:([^\r\n]*(?:\r?\n[ \t]*[-*][ \t]*#\d+[^\r\n]*)*)')
+PLAIN_DEPENDS = re.compile(r'Depends on[ \t]+(#\d+\b(?:(?:[ \t]*,[ \t]*(?:and[ \t]+)?|[ \t]+and[ \t]+)#\d+\b)*)')
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))?", re.M)
 MARKER = "<!-- pr-overlap -->"
 
 
 def git(*args):
-    return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout
+    return subprocess.run(["git", *args], capture_output=True, text=True, encoding="utf-8", check=True).stdout
 
 
 def gh(*args):
-    return subprocess.run(["gh", *args], capture_output=True, text=True, check=True).stdout
+    return subprocess.run(["gh", *args], capture_output=True, text=True, encoding="utf-8", check=True).stdout
 
 
 def upstream():
@@ -26,14 +28,15 @@ def upstream():
 
 
 def open_prs(base):
-    out = gh("pr", "list", "-R", REPO, "--base", base, "-L", "200", "--json", "number,author,headRefOid,body")
+    query = urlencode({"state": "open", "base": base, "per_page": 100})
+    out = gh("api", "--paginate", "--slurp", f"repos/{REPO}/pulls?{query}")
     prs = {}
-    for pr in json.loads(out):
-        depends = DEPENDS.search(pr["body"] or "")
+    for pr in chain.from_iterable(json.loads(out)):
+        depends = DEPENDS.search(pr["body"] or "") or PLAIN_DEPENDS.search(pr["body"] or "")
         prs[pr["number"]] = {
             "ref": f"refs/pr/{pr['number']}",
-            "sha": pr["headRefOid"],
-            "author": pr["author"]["login"],
+            "sha": pr["head"]["sha"],
+            "author": pr["user"]["login"],
             "depends": {int(n) for n in re.findall(r"#(\d+)", depends.group(1))} if depends else set(),
         }
     return prs
@@ -46,7 +49,7 @@ def fetch(base, prs):
 
 def merge(*args):
     result = subprocess.run(["git", "merge-tree", "--write-tree", "--name-only", "--no-messages", *args],
-                            capture_output=True, text=True)
+                            capture_output=True, text=True, encoding="utf-8")
     lines = result.stdout.splitlines()
     if result.returncode not in (0, 1) or not lines:
         raise RuntimeError(f"git merge-tree {' '.join(args)} failed: {result.stderr.strip()}")
@@ -56,6 +59,15 @@ def merge(*args):
 def commit(tree):
     return git("-c", "user.name=pr_overlap", "-c", "user.email=pr_overlap", "commit-tree", tree,
                "-p", "refs/pr/base", "-m", "pr_overlap").strip()
+
+
+def exports(diff):
+    found = set()
+    for line in diff.splitlines():
+        m = EXPORT.match(line)
+        if m and not m.group(1).endswith("_nid_no_patch") and not line.rstrip().endswith(";"):
+            found.add(m.group(1))
+    return found
 
 
 def scan(pr):
@@ -69,8 +81,7 @@ def scan(pr):
         if status == "A":
             pr["added"].add(path)
     diff = git("diff", "-U0", "--no-color", old, new, "--", "core/libs/prx/*.cpp")
-    pr["exports"] = {m.group(1) for m in map(EXPORT.match, diff.splitlines())
-                     if m and not m.group(1).endswith("_nid_no_patch")}
+    pr["exports"] = exports(diff)
 
 
 def hunks(pr, path):
@@ -131,6 +142,12 @@ def report(rows, blob):
     return "\n".join(lines) + "\n"
 
 
+def write_reports(out, rows, blob):
+    out.mkdir(parents=True, exist_ok=True)
+    for number, found in rows.items():
+        (out / f"{number}.md").write_text(report(found, blob), encoding="utf-8")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="report open pull requests that overlap each other")
     parser.add_argument("--base", default="main")
@@ -158,6 +175,4 @@ if __name__ == "__main__":
     if args.branch:
         print(report(rows[0], blob) or "No overlap with open pull requests.", end="")
         raise SystemExit
-    args.out.mkdir(parents=True, exist_ok=True)
-    for number, found in rows.items():
-        (args.out / f"{number}.md").write_text(report(found, blob))
+    write_reports(args.out, rows, blob)

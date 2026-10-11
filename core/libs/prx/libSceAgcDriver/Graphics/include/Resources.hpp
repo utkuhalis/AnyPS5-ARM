@@ -29,12 +29,13 @@ private:
     VkDeviceMemory memory = VK_NULL_HANDLE;
     void* mapping = nullptr;
     std::size_t size;
-    // The VkBuffer's own size, `size` rounded up to its pool class (see BufferPool::Capacity).
     std::size_t capacity;
     // Fully made (or taken from the pool), so release returns it to the pool instead of destroying
     // the handles a failed construction left.
     bool ready = false;
     VkDeviceSize allocationBytes = 0;
+    VkDeviceSize offset = 0;
+    bool slab = false;
     VkBufferUsageFlags usage;
     VkMemoryPropertyFlags properties;
     std::shared_ptr<BufferPool> cache;

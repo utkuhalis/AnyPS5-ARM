@@ -1,10 +1,12 @@
 #include "prx/libSceAgcDriver/Graphics/include/ColorTargetLayout.hpp"
 #include "prx/libSceAgcDriver/Graphics/include/TextureSwizzleEquations.hpp"
+#include <array>
 #include <bit>
 #include <cstring>
 #include <limits>
 #include <mutex>
 #include <stdexcept>
+#include <utility>
 
 namespace AgcDriver::Graphics {
 namespace {
@@ -41,11 +43,12 @@ std::uint32_t standard64Extra(std::uint32_t x, std::uint32_t y, std::uint32_t el
 
 ColorTileMode DecodeColorTileMode(std::uint32_t attrib3) {
     const auto resourceType = (attrib3 >> 24u) & 3u;
-    require((attrib3 & 0x80002000u) == 0 && ((resourceType == 1 && (attrib3 & 0x1fffu) == 0) || resourceType == 2) && ((attrib3 >> 27u) & 7u) == 1, "AGC graphics: unsupported color depth, dimension, resource level or metadata mode");
+    require((attrib3 & 0x80002000u) == 0 && ((resourceType == 0 && (attrib3 & 0x1fffu) == 0) || resourceType == 1 || resourceType == 2) && ((attrib3 >> 27u) & 7u) == 1, "AGC graphics: unsupported color depth, dimension, resource level or metadata mode");
     const auto mode = (attrib3 >> 14u) & 0x1fu;
     const auto fmaskMode = (attrib3 >> 19u) & 0x1fu;
-    require(fmaskMode == 0 || fmaskMode == 0x18, "AGC graphics: unsupported color FMASK swizzle mode");
-    require(mode == 0 || mode == 5 || mode == 9 || mode == 0x1b, "AGC graphics: unsupported color tile mode");
+    require(mode == 0 || mode == 5 || mode == 9 || mode == 0x15 || mode == 0x16 || mode == 0x1b, "AGC graphics: unsupported color tile mode");
+    require(fmaskMode == 0 || fmaskMode == 0x18 || fmaskMode == (mode & ~3u), "AGC graphics: unsupported color FMASK swizzle mode");
+    require(resourceType != 0 || mode == 0 || mode == 0x1b, "AGC graphics: 1D color targets with a standard swizzle mode are invalid");
     return static_cast<ColorTileMode>(mode);
 }
 
@@ -56,14 +59,15 @@ struct SwizzleTables {
     std::vector<std::uint32_t> y;
 };
 
-const SwizzleTables& renderTargetTables(std::uint32_t bytesPerElement, std::uint32_t blockWidth, std::uint32_t blockHeight) {
-    static std::once_flag once[5];
-    static SwizzleTables tables[5];
+const SwizzleTables& equationTables(ColorTileMode mode, std::uint32_t bytesPerElement, std::uint32_t blockWidth, std::uint32_t blockHeight) {
+    static std::once_flag once[3][5];
+    static SwizzleTables tables[3][5];
+    const auto modeIndex = mode == ColorTileMode::S4KBX ? 0u : mode == ColorTileMode::D4KBX ? 1u : 2u;
     const auto index = static_cast<std::size_t>(std::countr_zero(bytesPerElement));
-    std::call_once(once[index], [&] {
-        const auto* equation = FindTextureSwizzleEquation(27u, bytesPerElement);
-        require(equation != nullptr, "AGC graphics: no SW_64KB_R_X equation for the color element size");
-        auto& table = tables[index];
+    std::call_once(once[modeIndex][index], [&] {
+        const auto* equation = FindTextureSwizzleEquation(static_cast<std::uint32_t>(mode), bytesPerElement);
+        require(equation != nullptr, "AGC graphics: no XOR swizzle equation for the color tile mode and element size");
+        auto& table = tables[modeIndex][index];
         table.x.resize(blockWidth);
         table.y.resize(blockHeight);
         for (std::uint32_t x = 0; x < blockWidth; ++x) {
@@ -77,7 +81,7 @@ const SwizzleTables& renderTargetTables(std::uint32_t bytesPerElement, std::uint
             table.y[y] = offset;
         }
     });
-    return tables[index];
+    return tables[modeIndex][index];
 }
 
 const SwizzleTables& standardTables(std::uint32_t bytesPerElement, std::uint32_t blockWidth, std::uint32_t blockHeight, bool block64KB) {
@@ -96,9 +100,10 @@ const SwizzleTables& standardTables(std::uint32_t bytesPerElement, std::uint32_t
 
 }
 
-ColorTargetLayout::ColorTargetLayout(std::uint32_t width, std::uint32_t height, ColorTileMode mode, std::uint32_t bytesPerElement) : width(width), height(height), pitch(width), mode(mode), bytes(0), elementBytes(bytesPerElement) {
+ColorTargetLayout::ColorTargetLayout(std::uint32_t width, std::uint32_t height, ColorTileMode mode, std::uint32_t bytesPerElement, std::uint32_t pipeBankXor) : width(width), height(height), pitch(width), mode(mode), bytes(0), elementBytes(bytesPerElement), pipeBankXor(pipeBankXor) {
     require(width != 0 && height != 0 && width <= 16384 && height <= 16384, "AGC graphics: invalid color surface extent");
     require(std::has_single_bit(bytesPerElement) && bytesPerElement <= 16u, "AGC graphics: unsupported color element size");
+    require(pipeBankXor == 0 || (ColorTileModeIsXor(mode) && pipeBankXor < ColorTileModeBlockBytes(mode) && pipeBankXor % 256u == 0), "AGC graphics: a color pipe/bank XOR applies only to whole 256-byte units of XOR swizzle blocks");
     std::uint32_t paddedHeight = height;
     switch (mode) {
         case ColorTileMode::Linear: {
@@ -106,14 +111,16 @@ ColorTargetLayout::ColorTargetLayout(std::uint32_t width, std::uint32_t height, 
             pitch = (width + pitchAlignment - 1u) / pitchAlignment * pitchAlignment;
             break;
         }
+        case ColorTileMode::S4KBX:
+        case ColorTileMode::D4KBX:
         case ColorTileMode::RenderTarget: {
             // SW_64KB_R_X: 64 KiB blocks of 2^(16 - log2(bpe)) elements, wider than tall for odd powers.
-            const auto log2Elements = 16u - static_cast<std::uint32_t>(std::countr_zero(bytesPerElement));
+            const auto log2Elements = (mode == ColorTileMode::RenderTarget ? 16u : 12u) - static_cast<std::uint32_t>(std::countr_zero(bytesPerElement));
             blockWidth = 1u << ((log2Elements + 1u) / 2u);
             blockHeight = 1u << (log2Elements / 2u);
             pitch = (width + blockWidth - 1u) / blockWidth * blockWidth;
             paddedHeight = (height + blockHeight - 1u) / blockHeight * blockHeight;
-            const auto& tables = renderTargetTables(bytesPerElement, blockWidth, blockHeight);
+            const auto& tables = equationTables(mode, bytesPerElement, blockWidth, blockHeight);
             xOffsets = tables.x.data();
             yOffsets = tables.y.data();
             break;
@@ -142,7 +149,7 @@ ColorTargetLayout::ColorTargetLayout(std::uint32_t width, std::uint32_t height, 
 std::size_t ColorTargetLayout::offset(std::uint32_t x, std::uint32_t y) const {
     if (mode == ColorTileMode::Linear) return (static_cast<std::size_t>(y) * pitch + x) * elementBytes;
     const auto block = static_cast<std::size_t>(y / blockHeight) * (pitch / blockWidth) + x / blockWidth;
-    return block * Alignment() + (xOffsets[x % blockWidth] ^ yOffsets[y % blockHeight]);
+    return block * Alignment() + (xOffsets[x % blockWidth] ^ yOffsets[y % blockHeight] ^ pipeBankXor);
 }
 
 std::size_t ColorTargetLayout::Offset(std::uint32_t x, std::uint32_t y) const {
@@ -164,6 +171,25 @@ void ColorTargetLayout::Tile(std::span<const std::byte> source, std::span<std::b
         const auto* row = source.data() + static_cast<std::size_t>(y) * width * elementBytes;
         for (std::uint32_t x = 0; x < width; ++x) std::memcpy(destination.data() + offset(x, y), row + static_cast<std::size_t>(x) * elementBytes, elementBytes);
     }
+}
+
+CmaskLayout::CmaskLayout(std::uint32_t width, std::uint32_t height) : width(width), height(height), blocksPerRow((width + 1023u) / 1024u), bytes(0) {
+    require(width != 0 && height != 0 && width <= 16384 && height <= 16384, "AGC graphics: invalid CMASK surface extent");
+    bytes = static_cast<std::size_t>(blocksPerRow) * ((height + 511u) / 512u) * Alignment;
+}
+
+std::size_t CmaskLayout::Nibble(std::uint32_t tileX, std::uint32_t tileY) const {
+    require(tileX < TilesX() && tileY < TilesY(), "AGC graphics: CMASK tile out of range");
+    static constexpr std::array<std::pair<std::uint32_t, std::uint32_t>, 13> equation{{
+        {0x008u, 0x000u}, {0x000u, 0x010u}, {0x040u, 0x000u}, {0x000u, 0x040u}, {0x080u, 0x000u}, {0x000u, 0x080u}, {0x100u, 0x000u},
+        {0x000u, 0x100u}, {0x200u, 0x000u}, {0x008u, 0x008u}, {0x010u, 0x010u}, {0x040u, 0x020u}, {0x020u, 0x040u},
+    }};
+    const auto x = tileX * 8u;
+    const auto y = tileY * 8u;
+    std::size_t offset = 0;
+    for (std::size_t bit = 0; bit < equation.size(); ++bit) offset |= static_cast<std::size_t>(parity((x & equation[bit].first) ^ (y & equation[bit].second))) << bit;
+    const auto block = static_cast<std::size_t>(y / 512u) * blocksPerRow + x / 1024u;
+    return block * Alignment * 2u + offset;
 }
 
 }

@@ -24,7 +24,11 @@ static bool OwnsWrite(const PthreadRwlockPrivate* lock) {
 extern "C" {
 
 int APS5_VABI scePthreadRwlockDestroy(PthreadRwlock* rwlock) {
-    delete RequireRwlock(rwlock, __func__);
+    auto* lock = RequireRwlock(rwlock, __func__);
+    if (lock->_writer.load(std::memory_order_acquire) != std::thread::id{} ||
+        lock->_readers.load(std::memory_order_acquire) != 0)
+        return SCE_KERNEL_ERROR_EBUSY;
+    delete lock;
     *rwlock = nullptr;
     return SCE_OK;
 }
@@ -42,27 +46,40 @@ int APS5_VABI scePthreadRwlockInit(PthreadRwlock* rwlock, const PthreadRwlockatt
 int APS5_VABI scePthreadRwlockRdlock(PthreadRwlock* rwlock) {
     auto* lock = RequireRwlock(rwlock, __func__);
     if (OwnsWrite(lock)) return SCE_KERNEL_ERROR_EDEADLK;
+#ifdef _WIN32
+    while (!lock->_lock.try_lock_shared()) TimedWait::SleepNanos(1000000);
+#else
     lock->_lock.lock_shared();
+#endif
+    lock->_readers.fetch_add(1, std::memory_order_release);
     return SCE_OK;
 }
 
 int APS5_VABI scePthreadRwlockTryrdlock(PthreadRwlock* rwlock) {
     auto* lock = RequireRwlock(rwlock, __func__);
     if (OwnsWrite(lock)) return SCE_KERNEL_ERROR_EBUSY;
-    return lock->_lock.try_lock_shared() ? SCE_OK : SCE_KERNEL_ERROR_EBUSY;
+    if (!lock->_lock.try_lock_shared()) return SCE_KERNEL_ERROR_EBUSY;
+    lock->_readers.fetch_add(1, std::memory_order_release);
+    return SCE_OK;
 }
 
 int APS5_VABI scePthreadRwlockTimedrdlock(PthreadRwlock* rwlock, KernelUseconds usec) {
     auto* lock = RequireRwlock(rwlock, __func__);
     if (OwnsWrite(lock)) return SCE_KERNEL_ERROR_EDEADLK;
     const bool locked = TimedWait::AcquireUntil(TimedWait::DeadlineNanos(usec), [&] { return lock->_lock.try_lock_shared(); }, [&](std::uint64_t micros) { return lock->_lock.try_lock_shared_for(std::chrono::microseconds(micros)); });
-    return locked ? SCE_OK : SCE_KERNEL_ERROR_ETIMEDOUT;
+    if (!locked) return SCE_KERNEL_ERROR_ETIMEDOUT;
+    lock->_readers.fetch_add(1, std::memory_order_release);
+    return SCE_OK;
 }
 
 int APS5_VABI scePthreadRwlockWrlock(PthreadRwlock* rwlock) {
     auto* lock = RequireRwlock(rwlock, __func__);
     if (OwnsWrite(lock)) return SCE_KERNEL_ERROR_EDEADLK;
+#ifdef _WIN32
+    while (!lock->_lock.try_lock()) TimedWait::SleepNanos(1000000);
+#else
     lock->_lock.lock();
+#endif
     lock->_writer.store(std::this_thread::get_id(), std::memory_order_release);
     return SCE_OK;
 }
@@ -89,6 +106,7 @@ int APS5_VABI scePthreadRwlockUnlock(PthreadRwlock* rwlock) {
         lock->_writer.store(std::thread::id{}, std::memory_order_release);
         lock->_lock.unlock();
     } else {
+        lock->_readers.fetch_sub(1, std::memory_order_release);
         lock->_lock.unlock_shared();
     }
     return SCE_OK;

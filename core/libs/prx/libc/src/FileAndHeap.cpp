@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
+#include <optional>
 #include <filesystem>
 #include <limits>
 #include <utility>
@@ -14,16 +15,39 @@
 #include "prx/libc/include/General.hpp"
 #include "prx/libc/include/GuestArena.hpp"
 
-static std::string NativeFileMode(const char* mode) {
-    std::string result(mode);
+struct GuestFileMode {
+    std::string native;
+    bool writes = false;
+    bool exclusive = false;
+};
+
+static std::optional<GuestFileMode> ParseFileMode(const char* mode) {
+    const char access = mode[0];
+    if (access != 'r' && access != 'w' && access != 'a') return std::nullopt;
+    bool update = false;
+    bool exclusive = false;
+    for (const char* flag = mode + 1; *flag != '\0' && std::strchr("b+xev", *flag) != nullptr; ++flag) {
+        if (*flag == '+') update = true;
+        if (*flag == 'x') exclusive = true;
+    }
+    if (exclusive && access == 'r' && !update) return std::nullopt;
+    GuestFileMode result{std::string(1, access), access != 'r' || update, exclusive};
+    if (update) result.native += '+';
 #ifdef _WIN32
-    if (!result.empty() && result.find('b') == std::string::npos) result.insert(1, 1, 'b');
+    result.native += 'b';
 #endif
+    if (exclusive) result.native += 'x';
     return result;
 }
 
-static bool WritesFile(const char* mode) {
-    return std::strpbrk(mode, "wa+") != nullptr;
+static std::FILE* OpenNative(const std::filesystem::path& path, const std::string& nativeMode) {
+#ifdef _WIN32
+    std::wstring wideMode;
+    for (const char character : nativeMode) wideMode.push_back(static_cast<unsigned char>(character));
+    return ::_wfopen(path.c_str(), wideMode.c_str());
+#else
+    return std::fopen(path.c_str(), nativeMode.c_str());
+#endif
 }
 
 extern "C" {
@@ -56,15 +80,12 @@ FileStream* APS5_VABI fdopen_nid_postfix(int descriptor, const char* mode) {
 FileStream* APS5_VABI freopen_nid_postfix(const char* filename, const char* mode, FileStream* stream) {
     if (!stream || !mode) { errno = 22; return nullptr; }
     if (!filename) { errno = 45; return nullptr; } // Mode-only reopening is not supported.
-    const char* supported[] = {"r", "w", "a", "rb", "wb", "ab", "r+", "w+", "a+",
-        "rb+", "wb+", "ab+", "r+b", "w+b", "a+b"};
-    bool valid = false;
-    for (const auto* candidate : supported) if (std::strcmp(mode, candidate) == 0) valid = true;
-    if (!valid) { errno = 22; return nullptr; }
+    const auto parsed = ParseFileMode(mode);
+    if (!parsed) { errno = 22; return nullptr; }
     try {
-        const auto path = *filename ? ResolvePath_nid_no_patch(filename).string() : std::string{};
-        if (stream->Reopen(path.c_str(), NativeFileMode(mode).c_str())) {
-            if (!path.empty() && WritesFile(mode)) RecordWrittenPath_nid_no_patch(path);
+        const std::filesystem::path path = *filename ? ResolvePath_nid_no_patch(filename) : std::filesystem::path{};
+        if (stream->Reopen(path, parsed->native.c_str())) {
+            if (!path.empty() && parsed->writes) RecordWrittenPath_nid_no_patch(path);
             return stream;
         }
         const int error = errno;
@@ -77,12 +98,17 @@ FileStream* APS5_VABI freopen_nid_postfix(const char* filename, const char* mode
 
 FileStream* APS5_VABI fopen_nid_postfix(const char* filename, const char* mode) {
     if (!filename || !mode) throw std::runtime_error(std::string(__func__) + ": " + FOPEN_MSG_NULL_ARG);
+    const auto parsed = ParseFileMode(mode);
+    if (!parsed) {
+        errno = EINVAL;
+        return nullptr;
+    }
     const std::filesystem::path fpath = ResolvePath_nid_no_patch(filename);
     const auto abs_path = fpath.string();
-    std::unique_ptr<std::FILE, decltype(&std::fclose)> handle(std::fopen(abs_path.c_str(), NativeFileMode(mode).c_str()), std::fclose);
+    std::unique_ptr<std::FILE, int (*)(std::FILE*)> handle(OpenNative(fpath, parsed->native), std::fclose);
     if (!handle) {
         const int error = errno;
-        if (error == ENOENT) {
+        if (error == ENOENT || (parsed->exclusive && error == EEXIST)) {
             errno = error;
             return nullptr;
         }
@@ -103,7 +129,7 @@ FileStream* APS5_VABI fopen_nid_postfix(const char* filename, const char* mode) 
         throw std::runtime_error(std::string(__func__) + ": " + FOPEN_MSG_OPEN_FAILED + ": \"" + abs_path + "\": " + reason);
     }
     // APS5_LOG_OUT("success: \"%s\"", abs_path.c_str());
-    if (WritesFile(mode)) RecordWrittenPath_nid_no_patch(fpath);
+    if (parsed->writes) RecordWrittenPath_nid_no_patch(fpath);
     auto stream = std::make_unique<FileStream>(handle.get(), true);
     handle.release();
     return stream.release();
@@ -220,6 +246,12 @@ int APS5_VABI fsetpos_nid_postfix(FileStream* stream, const std::int64_t* positi
     return fseeko_nid_postfix(stream, *position, SEEK_SET);
 }
 
+void APS5_VABI rewind_nid_postfix(FileStream* stream) {
+    const int saved = errno;
+    if (fseeko_nid_postfix(stream, 0, SEEK_SET) == 0) errno = saved;
+    stream->ClearError();
+}
+
 int APS5_VABI fputs_nid_postfix(const char* str, FileStream* stream) {
     if (!str) throw std::runtime_error("fputs: null string");
     const int result = std::fputs(str, GetNativeStream(stream));
@@ -230,6 +262,10 @@ int APS5_VABI fputs_nid_postfix(const char* str, FileStream* stream) {
 int APS5_VABI fflush_nid_postfix(FileStream* stream) {
     if (std::fflush(stream ? GetNativeStream(stream) : nullptr) != 0) throw std::runtime_error("fflush: flush failed");
     return 0;
+}
+
+int APS5_VABI malloc_stats_fast_nid_postfix(void* stats) {
+    return ApplicationHeapStatsFast_nid_no_patch(stats);
 }
 
 void* APS5_VABI malloc_nid_postfix(size_t size) {

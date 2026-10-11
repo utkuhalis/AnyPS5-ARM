@@ -40,10 +40,28 @@ endif()
 if(BUILD_TESTING)
     find_package(Python3 QUIET COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
+        add_test(NAME pr_overlap_encoding COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/tests/test_pr_overlap_encoding.py)
+        add_test(NAME pr_overlap_dependencies COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/tests/test_pr_overlap_dependencies.py)
+        add_test(NAME pr_overlap_tools COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/tests/test_pr_overlap.py)
         add_test(NAME progress_report COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tools/tests/test_progress.py)
+        add_test(NAME progress_encoding COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/tests/test_progress_encoding.py)
         add_test(NAME import_audit COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tools/tests/test_import_audit.py)
+        add_test(NAME conventions_function_bodies COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/tests/test_check_conventions_comments.py)
+        add_test(NAME test_registration COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/tests/test_test_registration.py)
+        add_test(NAME hardware_oracle COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/hw-oracle/test_hw_oracle.py)
+        add_test(NAME pr_overlap_exports COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/tests/test_pr_overlap_exports.py)
+        add_test(NAME nid_database_cache COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/tests/test_nid_names.py)
     endif()
 endif()
 
@@ -87,6 +105,11 @@ set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
 set(SKIP_INSTALL_ALL ON CACHE BOOL "" FORCE)
 add_subdirectory(3rdparty/freetype EXCLUDE_FROM_ALL)
 set_target_properties(freetype PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(WIN32)
+    get_target_property(freetypeSources freetype SOURCES)
+    list(FILTER freetypeSources EXCLUDE REGEX "ftver\\.rc$")
+    set_target_properties(freetype PROPERTIES SOURCES "${freetypeSources}")
+endif()
 
 add_subdirectory(core/shader/recompiler)
 add_subdirectory(core/Decoder/Jpeg)

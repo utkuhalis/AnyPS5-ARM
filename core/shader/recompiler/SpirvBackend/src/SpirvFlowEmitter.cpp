@@ -85,7 +85,8 @@ void EmitReturnTerminator(SpirvValueEmitContext& ctx) {
         const auto pc = state.module.AllocateId();
         state.module.AddFunction(spv::OpLoad, TypeU32(state), pc, state.loopGuardPc);
         EmitIfCondition(state, Binary(state, spv::OpINotEqual, TypeBool(state), pc, ConstantU32(state, 0u)), [&] {
-            RecordBdaFault(state, BdaConstant(state, state.program.Resources().shaderHash), ConstantU32(state, state.loopGuardLimit), EmitBinaryU32(state, spv::OpISub, pc, ConstantU32(state, 1u)), BdaAbi::FaultReason::LoopLimit);
+            const auto hash = state.program.Resources().shaderHash;
+            RecordBdaFaultWords(state, ConstantU32(state, static_cast<std::uint32_t>(hash)), ConstantU32(state, static_cast<std::uint32_t>(hash >> 32u)), ConstantU32(state, state.loopGuardLimit), EmitBinaryU32(state, spv::OpISub, pc, ConstantU32(state, 1u)), BdaAbi::FaultReason::LoopLimit);
         });
     }
     if (OrderedPixelShader(state)) {
@@ -291,6 +292,7 @@ void EmitDirectInstruction(SpirvValueEmitContext& ctx, const IrValue& inst) {
         case IrOpcode::RealtimeClock: return Invoke(EmitRealtimeClock, ctx, inst);
         case IrOpcode::MeshDrawParameter: return Invoke(EmitMeshDrawParameter, ctx, inst);
         case IrOpcode::MeshArgument: return Invoke(EmitMeshArgument, ctx, inst);
+        case IrOpcode::MeshRestartStart: return Invoke(EmitMeshRestartStart, ctx, inst);
         case IrOpcode::MeshAllocate: return Invoke(EmitMeshAllocate, ctx, inst);
         case IrOpcode::TessellationBase: return Invoke(EmitTessellationBase, ctx, inst);
         case IrOpcode::GetTessellationAttribute: return Invoke(EmitGetTessellationAttribute, ctx, inst);
@@ -505,6 +507,9 @@ void EmitDirectInstruction(SpirvValueEmitContext& ctx, const IrValue& inst) {
         case IrOpcode::StoreAddressU8: return Invoke(EmitStoreAddressU8, ctx, inst);
         case IrOpcode::StoreAddressU16: return Invoke(EmitStoreAddressU16, ctx, inst);
         case IrOpcode::StoreAddressU32: return Invoke(EmitStoreAddressU32, ctx, inst);
+        case IrOpcode::StoreAddressU32x2: return Invoke(EmitStoreAddressU32x2, ctx, inst);
+        case IrOpcode::StoreAddressU32x3: return Invoke(EmitStoreAddressU32x3, ctx, inst);
+        case IrOpcode::StoreAddressU32x4: return Invoke(EmitStoreAddressU32x4, ctx, inst);
         case IrOpcode::AddressAtomicSwap32: return Invoke(EmitAddressAtomic, ctx, inst);
         case IrOpcode::AddressAtomicCmpSwap32: return Invoke(EmitAddressAtomic, ctx, inst);
         case IrOpcode::AddressAtomicIAdd32: return Invoke(EmitAddressAtomic, ctx, inst);
@@ -727,7 +732,7 @@ void EmitStructuredBlock(SpirvValueEmitContext& ctx, StructuredFunctionState& fu
             } else if (access != SharedAccess::None) {
                 const bool writes = access != SharedAccess::Read;
                 if (ldsWritten || (writes && ldsRead)) {
-                    state.module.AddFunction(spv::OpControlBarrier, ConstantU32(state, state.waveLdsScope), ConstantU32(state, spv::ScopeWorkgroup), ConstantU32(state, spv::MemorySemanticsAcquireReleaseMask | spv::MemorySemanticsWorkgroupMemoryMask));
+                    state.module.AddFunction(spv::OpControlBarrier, ConstantU32(state, state.waveLdsScope), ConstantU32(state, spv::ScopeWorkgroup), ConstantU32(state, spv::MemorySemanticsAcquireReleaseMask | LdsMemorySemantics(state)));
                     ldsWritten = false;
                     ldsRead = false;
                 }
@@ -770,6 +775,13 @@ void PatchStructuredPhis(SpirvValueEmitContext& ctx, StructuredFunctionState& fu
     }
 }
 
+bool CommunicatesThroughMemory(IrOpcode opcode) {
+    const auto buffer = BufferAccessOf(opcode);
+    const auto address = AddressOpcodeInfoOf(opcode).access;
+    const auto image = ImageOpcodeInfoOf(opcode).access;
+    return SharedAccessOf(opcode) != SharedAccess::None || buffer == BufferAccess::Write || buffer == BufferAccess::Atomic || address == AddressAccess::Write || address == AddressAccess::Atomic || image == ImageAccess::Write || image == ImageAccess::Atomic;
+}
+
 }
 
 void EmitControlFlow(SpirvModule& module, const IrProgram& program) {
@@ -809,11 +821,13 @@ void EmitControlFlow(SpirvValueEmitContext& context, StructuredFunctionState& fu
             context.Fail("structured control flow block has no terminator metadata");
         }
         const bool stops = state.bdaStopsInvocations;
-        state.bdaStopsInvocations = stops && !IsContinueTarget(program, info->id);
+        state.continueTarget = IsContinueTarget(program, info->id);
+        state.bdaStopsInvocations = stops && !state.continueTarget;
         EmitStructuredBlock(context, functionState, block);
         functionState.blockExitLabels.emplace(block, state.currentLabel);
         EmitStructuredTerminator(context, program, *info);
         state.bdaStopsInvocations = stops;
+        state.continueTarget = false;
     }
     PatchStructuredPhis(context, functionState);
 }
@@ -821,10 +835,19 @@ void EmitControlFlow(SpirvValueEmitContext& context, StructuredFunctionState& fu
 void EmitVoid(SpirvValueEmitContext&) {
 }
 
-void EmitBarrier(SpirvEmitterState& state) {
+void EmitBarrier(SpirvValueEmitContext& ctx, const IrValue& inst) {
+    auto& state = ctx.state;
+    if (state.program.Resources().stage == IrShaderStage::Vertex) {
+        for (const auto* block : state.program.BlockOrder()) {
+            for (const auto* instruction : block->Instructions()) {
+                if (CommunicatesThroughMemory(instruction->Opcode())) ctx.Fail(inst, "s_barrier in a vertex program that accesses LDS or GDS or writes memory is not implemented");
+            }
+        }
+        return;
+    }
     const bool tessellation = state.program.Resources().stage == IrShaderStage::TessellationControl;
     const auto memoryScope = tessellation ? spv::ScopeInvocation : spv::ScopeWorkgroup;
-    const auto semantics = tessellation ? spv::MemorySemanticsMaskNone : spv::MemorySemanticsAcquireReleaseMask | spv::MemorySemanticsWorkgroupMemoryMask;
+    const std::uint32_t semantics = tessellation ? static_cast<std::uint32_t>(spv::MemorySemanticsMaskNone) : spv::MemorySemanticsAcquireReleaseMask | LdsMemorySemantics(state);
     state.module.AddFunction(spv::OpControlBarrier, ConstantU32(state, spv::ScopeWorkgroup), ConstantU32(state, memoryScope), ConstantU32(state, semantics));
 }
 

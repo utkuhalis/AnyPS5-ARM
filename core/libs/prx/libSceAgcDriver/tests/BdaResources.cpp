@@ -3,6 +3,8 @@
 #include "prx/libc/include/GuestAllocations.hpp"
 #include "prx/libc/include/GuestHeap.hpp"
 #include "prx/libc/include/GuestArena.hpp"
+#include "prx/libSceAgcDriver/Execution/include/GuestMemory.hpp"
+#include "prx/libc/include/GuestWriteWatch.hpp"
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -11,12 +13,18 @@
 #endif
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <cstring>
 #include <functional>
+#include <initializer_list>
 #include <iostream>
 #include <limits>
+#include <new>
 #include <string>
 
+#ifndef _WIN32
+#include <sys/mman.h>
+#endif
 namespace {
 
 using namespace AgcDriver::Graphics;
@@ -32,8 +40,228 @@ void reject(TAction action, const char* reason) {
     throw std::runtime_error(std::string("expected BDA rejection: ") + reason);
 }
 
+void importCrossingTests(const Context& context, const BdaTestAccess& access) {
+    constexpr std::size_t half = 65536;
+    void* block = ::operator new(2 * half, std::align_val_t{half});
+    auto* guest = static_cast<std::uint8_t*>(block);
+    std::memset(guest, 0x11, half);
+    std::memset(guest + half, 0x22, half);
+    const auto first = reinterpret_cast<std::uintptr_t>(block);
+    const auto second = first + half;
+    auto importing = context;
+    importing.hostImportAlignment = half;
+    const auto registry = [&](bool add) {
+        auto* mutation = GuestAllocations::GuestAllocationsBegin_nid_postfix();
+        for (auto* range : {guest, guest + half}) {
+            if (add) GuestAllocations::GuestAllocationsAdd_nid_postfix(mutation, range, half, true, false, true);
+            else GuestAllocations::GuestAllocationsRemove_nid_postfix(mutation, range);
+        }
+        GuestAllocations::GuestAllocationsEnd_nid_postfix(mutation);
+    };
+    registry(true);
+    {
+        GuestBufferMemory leased(importing);
+        leased.AcquireRegistered();
+        Require(HostImportCovers(importing, first, half) && HostImportCovers(importing, second, half), "the registered ranges were not imported");
+        const auto secondImport = *HostImportFor(importing, second, half);
+        leased.AddReadable(second - 16, 32);
+        leased.AddReadable(second + 64, 16);
+        leased.Upload(true);
+        std::uint32_t adjustment = 0;
+        const auto crossing = leased.Descriptor(second - 16, 32, adjustment);
+        const auto crossingBytes = access.bytes(crossing.buffer);
+        Require(crossing.offset + crossing.range <= crossingBytes.size(), "a view crossing into the next registered range is bound past its host import");
+        Require(crossingBytes[crossing.offset + adjustment + 15] == std::byte{0x11} && crossingBytes[crossing.offset + adjustment + 16] == std::byte{0x22}, "a view crossing into the next registered range misses its bytes");
+        const auto inside = leased.Descriptor(second + 64, 16, adjustment);
+        const auto insideBytes = access.bytes(inside.buffer);
+        Require(inside.offset + inside.range <= insideBytes.size() && (inside.buffer == secondImport.buffer ? inside.offset + adjustment == 64 : insideBytes[inside.offset + adjustment] == std::byte{0x22}), "a view in the second registered range is bound past its buffer or misses its bytes");
+        for (const auto& range : leased.AddressRanges()) {
+            if (range.end <= first || range.begin >= second + half) continue;
+            const auto mapped = access.addressBytes(range.deviceAddress);
+            Require(mapped.size() >= range.end - range.begin, "a BDA range runs past the end of its host import");
+            if (range.begin <= second && second < range.end && range.deviceAddress != secondImport.address) Require(mapped[second - range.begin] == std::byte{0x22}, "the BDA range over the second registered range misses its bytes");
+        }
+        leased.WriteBack();
+    }
+    registry(false);
+    Require(HostImportFor(importing, first, half) == nullptr && !HostImportCovers(importing, second, half), "the host imports outlived their ranges");
+    ::operator delete(block, std::align_val_t{half});
+}
+
 ShaderRecompiler::DescriptorBinding binding(Role role, std::uint32_t slot) {
     return {ShaderRecompiler::DescriptorKind::StorageBuffer, role, 0, slot, 1, {}, false};
+}
+
+void importedHeapMirrorTests(const Context& context, const BdaTestAccess& access) {
+    if (!GuestArena::GuestArenaAvailable_nid_postfix() || !GuestArena::GuestArenaWriteWatched_nid_postfix()) {
+        std::cout << "guest arena unavailable or not write-watched: heap mirrors of imported ranges not tested\n";
+        return;
+    }
+    constexpr std::size_t bytes = 1u << 20u;
+    void* block = GuestArena::GuestArenaAllocate_nid_postfix(bytes, bytes);
+#ifdef _WIN32
+    GuestArena::GuestArenaCommit_nid_postfix(block, bytes, PAGE_READWRITE, bytes);
+#endif
+    std::memset(block, 0x11, bytes);
+    const auto address = reinterpret_cast<std::uintptr_t>(block);
+    auto importing = context;
+    importing.hostImportAlignment = bytes;
+    const auto registry = [&](bool add) {
+        auto* mutation = GuestAllocations::GuestAllocationsBegin_nid_postfix();
+        if (add) GuestAllocations::GuestAllocationsAdd_nid_postfix(mutation, block, bytes, true, false, true);
+        else GuestAllocations::GuestAllocationsRemove_nid_postfix(mutation, block);
+        GuestAllocations::GuestAllocationsEnd_nid_postfix(mutation);
+    };
+    const auto build = [&](const Context& with) {
+        GuestAllocations::GuestAllocationsEnd_nid_postfix(GuestAllocations::GuestAllocationsBegin_nid_postfix());
+        GuestBufferMemory leased(with);
+        leased.AcquireRegistered();
+        leased.Upload(true);
+        const auto ranges = leased.AddressRanges();
+        const auto found = std::find_if(ranges.begin(), ranges.end(), [&](const auto& range) { return range.begin == address && range.end == address + bytes; });
+        const auto device = found != ranges.end() ? found->deviceAddress : 0;
+        leased.WriteBack();
+        return device;
+    };
+    const auto before = MirrorCounters();
+    registry(true);
+    Require(build(context) != 0, "the heap range is missing from the BDA table of a build without host imports");
+    const auto mirrored = MirrorCounters();
+    Require(mirrored.heapMirrors == before.heapMirrors + 1 && mirrored.heapBytes == before.heapBytes + bytes, "a range built without host imports was not heap mirrored");
+    Require(build(importing) != 0 && HostImportCovers(importing, address, bytes), "the heap mirrored range was not imported once imports were available");
+    const auto imported = MirrorCounters();
+    Require(imported.heapMirrors == before.heapMirrors && imported.heapBytes == before.heapBytes, "a heap mirror outlived the host import that serves its range");
+    Require(build(importing) != 0 && MirrorCounters().heapMirrors == before.heapMirrors && MirrorCounters().rebuilds == imported.rebuilds, "an imported range was heap mirrored again");
+    static_cast<std::uint8_t*>(block)[bytes / 2] = 0x22;
+    const auto device = build(context);
+    const auto again = MirrorCounters();
+    Require(device != 0 && again.heapMirrors == before.heapMirrors + 1 && again.heapBytes == before.heapBytes + bytes && again.rebuilds == imported.rebuilds + 1, "a range no import serves was not heap mirrored again");
+    Require(access.addressBytes(device)[bytes / 2] == std::byte{0x22} && access.addressBytes(device)[bytes / 2 + 1] == std::byte{0x11}, "a heap mirror made after its import missed the guest bytes");
+    registry(false);
+    Require(HostImportFor(importing, address, bytes) == nullptr && !HostImportCovers(importing, address, bytes), "the import outlived its range");
+    Require(build(context) == 0, "the unregistered heap range is still in the BDA table");
+    Require(MirrorCounters().heapMirrors == before.heapMirrors && MirrorCounters().heapBytes == before.heapBytes, "the heap mirror outlived its range");
+#ifdef _WIN32
+    GuestArena::GuestArenaReset_nid_postfix(block, bytes);
+#endif
+    GuestArena::GuestArenaRelease_nid_postfix(block, bytes);
+}
+
+void importedFreshTests(const Context& context) {
+#ifndef _WIN32
+    if (!GuestWriteWatch::GuestWriteWatchAvailable_nid_postfix()) {
+        std::cout << "write watch unavailable: imported never-collected pages not tested\n";
+        return;
+    }
+    constexpr std::size_t blockBytes = 65536;
+    void* area = mmap(nullptr, 2 * blockBytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    Require(area != MAP_FAILED, "cannot map the imported block");
+    const auto base = (reinterpret_cast<std::uintptr_t>(area) + blockBytes - 1) & ~(blockBytes - 1);
+    std::memset(reinterpret_cast<void*>(base), 0x55, blockBytes);
+    GuestWriteWatch::GuestWriteWatchRegister_nid_postfix(reinterpret_cast<void*>(base), blockBytes);
+    auto importing = context;
+    importing.hostImportAlignment = blockBytes;
+    const auto registry = [&](bool add) {
+        auto* mutation = GuestAllocations::GuestAllocationsBegin_nid_postfix();
+        if (add) GuestAllocations::GuestAllocationsAdd_nid_postfix(mutation, reinterpret_cast<void*>(base), blockBytes, true, true, true);
+        else GuestAllocations::GuestAllocationsRemove_nid_postfix(mutation, reinterpret_cast<void*>(base));
+        GuestAllocations::GuestAllocationsEnd_nid_postfix(mutation);
+    };
+    registry(true);
+    if (HostImportFor(importing, base, blockBytes) == nullptr) {
+        std::cout << "the never-collected block was not imported: imported never-collected pages not tested\n";
+    } else {
+        const auto gpuWrite = AgcDriver::GuestMemory::MarkWritten(base, 4);
+        Require(gpuWrite != 0, "a GPU write into an imported never-collected block was not stamped");
+        reinterpret_cast<volatile std::uint8_t*>(base)[5 * 4096 + 8] = 0x66;
+        static_cast<void>(AgcDriver::GuestMemory::CollectWritesUncached(base, blockBytes));
+        Require(AgcDriver::GuestMemory::WrittenSince(base + 5 * 4096, 4096, gpuWrite), "a CPU write to an imported page protected after the import was not seen");
+    }
+    registry(false);
+    Require(HostImportFor(importing, base, blockBytes) == nullptr, "the import outlived its range");
+    GuestWriteWatch::GuestWriteWatchUnregister_nid_postfix(reinterpret_cast<void*>(base), blockBytes);
+    munmap(area, 2 * blockBytes);
+#else
+    static_cast<void>(context);
+#endif
+}
+
+void importWatchTests() {
+#ifndef _WIN32
+    if (!GuestWriteWatch::GuestWriteWatchAvailable_nid_postfix()) {
+        std::cout << "write watch unavailable: import watch not tested\n";
+        return;
+    }
+    constexpr std::size_t bytes = 4 * 65536;
+    void* block = mmap(nullptr, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    Require(block != MAP_FAILED, "cannot map the import watch block");
+    auto* guest = static_cast<std::uint8_t*>(block);
+    const auto address = reinterpret_cast<std::uintptr_t>(block);
+    GuestWriteWatch::GuestWriteWatchRegister_nid_postfix(block, bytes);
+    std::memset(block, 0x22, bytes);
+    const auto written = [&] {
+        std::size_t reported = 0;
+        Require(GuestWriteWatch::GuestWriteWatchCollect_nid_postfix(address, bytes, [](void* context, std::uintptr_t begin, std::uintptr_t end) { *static_cast<std::size_t*>(context) += end - begin; }, &reported), "the write watch did not collect the block");
+        return reported;
+    };
+    Require(AgcDriver::GuestMemory::ImportWatched(address, bytes, [] { return true; }), "importing a block nothing had collected failed");
+    Require(written() == bytes, "an import write-protected pages nothing had collected");
+    guest[3 * 4096] = 0x33;
+    Require(AgcDriver::GuestMemory::ImportWatched(address, bytes, [] { return true; }), "importing a collected block failed");
+    Require(written() == 0, "an import did not take the writes to pages a collect had protected");
+    GuestWriteWatch::GuestWriteWatchUnregister_nid_postfix(block, bytes);
+    munmap(block, bytes);
+    constexpr std::size_t blockBytes = 65536;
+    void* area = mmap(nullptr, bytes + 2 * blockBytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    Require(area != MAP_FAILED, "cannot map the GPU write block");
+    const auto aligned = (reinterpret_cast<std::uintptr_t>(area) + blockBytes - 1) & ~(blockBytes - 1);
+    const auto imported = aligned + 4096;
+    GuestWriteWatch::GuestWriteWatchRegister_nid_postfix(reinterpret_cast<void*>(imported), bytes);
+    Require(AgcDriver::GuestMemory::ImportWatched(imported, bytes, [] { return true; }), "importing a fresh range failed");
+    const auto gpuWrite = AgcDriver::GuestMemory::MarkWritten(imported + 4096, 4096);
+    Require(gpuWrite != 0, "a GPU write into the imported range was not stamped");
+    static_cast<void>(AgcDriver::GuestMemory::CollectWritesUncached(imported, bytes));
+    Require(!AgcDriver::GuestMemory::WrittenSince(imported + 4096, 4096, gpuWrite), "a collect after a GPU write into an uncollected import read as a CPU write over the GPU's results");
+    reinterpret_cast<volatile std::uint8_t*>(imported)[4096 + 100] = 0x44;
+    static_cast<void>(AgcDriver::GuestMemory::CollectWritesUncached(imported, bytes));
+    Require(AgcDriver::GuestMemory::WrittenSince(imported + 4096, 4096, gpuWrite), "a CPU write after a GPU write into an import was not seen");
+    GuestWriteWatch::GuestWriteWatchUnregister_nid_postfix(reinterpret_cast<void*>(imported), bytes);
+    munmap(area, bytes + 2 * blockBytes);
+
+    void* labels = mmap(nullptr, 2 * blockBytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    Require(labels != MAP_FAILED, "cannot map the label block");
+    const auto label = (reinterpret_cast<std::uintptr_t>(labels) + blockBytes - 1) & ~(blockBytes - 1);
+    auto* words = reinterpret_cast<volatile std::uint32_t*>(label);
+    GuestWriteWatch::GuestWriteWatchRegister_nid_postfix(reinterpret_cast<void*>(label), blockBytes);
+    words[0] = 1;
+    static_cast<void>(AgcDriver::GuestMemory::CollectWritesUncached(label, 4));
+    const auto before = AgcDriver::GuestMemory::TrackerGeneration();
+    Require(AgcDriver::GuestMemory::MarkWritten(label, 4) != 0, "a GPU write next to never-collected pages was not stamped");
+    Require(AgcDriver::GuestMemory::UnchangedSinceCollected(label, 4, before), "a GPU write next to never-collected pages read as a CPU write of its block");
+    Require(AgcDriver::GuestMemory::StoredOver(label + 8 * 4096, 4096, before), "a never-collected page a GPU write collected is not reported as possibly stored");
+    const std::array<std::uint64_t, 1> since{before};
+    std::array<std::uint8_t, 1> changed{};
+    std::array<std::uint8_t, 1> cpu{};
+    Require(AgcDriver::GuestMemory::ChangedBlocks(label, blockBytes, since, changed, cpu) && changed[0] == AgcDriver::GuestMemory::BlockWritten && cpu[0] == 0, "collecting never-collected pages at a GPU write stamped their block as written by the CPU");
+    const auto now = AgcDriver::GuestMemory::TrackerGeneration();
+    Require(AgcDriver::GuestMemory::MarkWritten(label, 4) == now + 1, "a GPU write into a block with nothing left to collect advanced the generation more than once");
+    words[1] = 2;
+    Require(!AgcDriver::GuestMemory::UnchangedSinceCollected(label, 4, before), "a CPU write next to a GPU write was not seen");
+    void* awaitedArea = mmap(nullptr, 2 * blockBytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    Require(awaitedArea != MAP_FAILED, "cannot map the awaited block");
+    const auto awaitedBlock = (reinterpret_cast<std::uintptr_t>(awaitedArea) + blockBytes - 1) & ~(blockBytes - 1);
+    const auto awaited = awaitedBlock + 5 * 4096;
+    GuestWriteWatch::GuestWriteWatchRegister_nid_postfix(reinterpret_cast<void*>(awaitedBlock), blockBytes);
+    static_cast<void>(AgcDriver::GuestMemory::CollectWritesUncached(awaitedBlock, 4));
+    const auto closed = AgcDriver::GuestMemory::TrackerGeneration();
+    *reinterpret_cast<volatile std::uint32_t*>(awaited) = 7;
+    Require(AgcDriver::GuestMemory::MarkWritten(awaitedBlock, 4) != 0, "a GPU write into the awaited block was not stamped");
+    Require(!AgcDriver::GuestMemory::UnchangedSinceCollected(awaited, 4, closed), "a CPU store to a never-collected page that a GPU write elsewhere in its block collected was not seen");
+    GuestWriteWatch::GuestWriteWatchUnregister_nid_postfix(reinterpret_cast<void*>(awaitedBlock), blockBytes);
+    munmap(awaitedArea, 2 * blockBytes);
+    GuestWriteWatch::GuestWriteWatchUnregister_nid_postfix(reinterpret_cast<void*>(label), blockBytes);
+    munmap(labels, 2 * blockBytes);
+#endif
 }
 
 void heapMirrorTests(const Context& context, const BdaTestAccess& access) {
@@ -51,7 +279,7 @@ void heapMirrorTests(const Context& context, const BdaTestAccess& access) {
     const auto address = reinterpret_cast<std::uintptr_t>(block);
     const auto registry = [&](bool add, bool writable) {
         auto* mutation = GuestAllocations::GuestAllocationsBegin_nid_postfix();
-        if (add) GuestAllocations::GuestAllocationsAdd_nid_postfix(mutation, block, bytes, true, writable);
+        if (add) GuestAllocations::GuestAllocationsAdd_nid_postfix(mutation, block, bytes, true, writable, true);
         else GuestAllocations::GuestAllocationsRemove_nid_postfix(mutation, block);
         GuestAllocations::GuestAllocationsEnd_nid_postfix(mutation);
     };
@@ -102,6 +330,10 @@ void heapMirrorTests(const Context& context, const BdaTestAccess& access) {
     guest[65536 + 7] = 0x44;
     Require(build(0, {}) == first && MirrorCounters().blocksCopied == one.blocksCopied + 2, "two written heap blocks were not read again");
     Require(access.addressBytes(first)[5] == std::byte{0x33} && access.addressBytes(first)[65536 + 7] == std::byte{0x44}, "the heap mirror missed the CPU writes");
+    const auto quiet = MirrorCounters();
+    Require(build(0, {}) == first && MirrorCounters().heapChecks == quiet.heapChecks && MirrorCounters().sweeps == quiet.sweeps && MirrorCounters().blocksCopied == quiet.blocksCopied, "an unchanged heap range was compared block by block or the mirrors were swept again");
+    guest[65536 + 9] = 0x66;
+    Require(build(0, {}) == first && MirrorCounters().heapChecks > quiet.heapChecks && MirrorCounters().blocksCopied == quiet.blocksCopied + 1 && access.addressBytes(first)[65536 + 9] == std::byte{0x66}, "a CPU write after an unchanged build was missed");
     registry(false, false);
     sweep();
     const auto swept = MirrorCounters();
@@ -116,6 +348,13 @@ void heapMirrorTests(const Context& context, const BdaTestAccess& access) {
     });
     Require(guest[16] == 0x77 && guest[16 + 8] == 0x55, "a writable heap mirror's write-back lost the GPU's store or rolled back the CPU's");
     Require(build(0, {}) == device && access.addressBytes(device)[16] == std::byte{0x77} && access.addressBytes(device)[16 + 8] == std::byte{0x55}, "the writable heap mirror missed the stores");
+    Require(build(address + 40, [&](GuestBufferMemory& leased) {
+        std::uint32_t adjustment = 0;
+        const auto view = leased.Descriptor(address + 40, 8, adjustment);
+        access.bytes(view.buffer)[view.offset + adjustment] = std::byte{0x78};
+    }) == device && guest[40] == 0x78, "a writable heap mirror's second write-back lost the GPU's store");
+    guest[65536 + 1] = 0x79;
+    Require(build(0, {}) == device && access.addressBytes(device)[40] == std::byte{0x78} && access.addressBytes(device)[65536 + 1] == std::byte{0x79}, "the writable heap mirror missed a store after a write-back");
     registry(false, true);
     sweep();
     Require(MirrorCounters().heapMirrors == before.heapMirrors, "the writable heap mirror outlived its range");
@@ -131,7 +370,7 @@ void heapMirrorTests(const Context& context, const BdaTestAccess& access) {
         const auto registerPair = [&](bool add) {
             auto* mutation = GuestAllocations::GuestAllocationsBegin_nid_postfix();
             for (auto* range : {first, second}) {
-                if (add) GuestAllocations::GuestAllocationsAdd_nid_postfix(mutation, range, half, true, false);
+                if (add) GuestAllocations::GuestAllocationsAdd_nid_postfix(mutation, range, half, true, false, true);
                 else GuestAllocations::GuestAllocationsRemove_nid_postfix(mutation, range);
             }
             GuestAllocations::GuestAllocationsEnd_nid_postfix(mutation);
@@ -184,7 +423,7 @@ void heapMirrorTests(const Context& context, const BdaTestAccess& access) {
         GuestAllocations::GuestAllocationsInvalidate_nid_postfix(page, 4096);
         const auto registerRange = [&](bool add) {
             auto* mutation = GuestAllocations::GuestAllocationsBegin_nid_postfix();
-            if (add) GuestAllocations::GuestAllocationsAdd_nid_postfix(mutation, raw, size, true, true);
+            if (add) GuestAllocations::GuestAllocationsAdd_nid_postfix(mutation, raw, size, true, true, true);
             else GuestAllocations::GuestAllocationsRemove_nid_postfix(mutation, raw);
             GuestAllocations::GuestAllocationsEnd_nid_postfix(mutation);
         };
@@ -229,12 +468,154 @@ void heapMirrorTests(const Context& context, const BdaTestAccess& access) {
         GuestArena::GuestArenaRelease_nid_postfix(raw, size);
     }
 #endif
+    {
+        constexpr std::size_t large = 36 * 65536;
+        constexpr std::size_t small = 17 * 65536;
+        constexpr std::size_t total = 2 * large + small;
+        void* raw = GuestArena::GuestArenaAllocate_nid_postfix(total, 65536);
+#ifdef _WIN32
+        GuestArena::GuestArenaCommit_nid_postfix(raw, total, PAGE_READWRITE, total);
+#endif
+        auto* const heap = static_cast<std::uint8_t*>(raw);
+        const std::array<std::uint8_t*, 3> heaps{heap, heap + large, heap + 2 * large};
+        const std::array<std::size_t, 3> sizes{large, large, small};
+        for (std::size_t index = 0; index < heaps.size(); ++index) std::memset(heaps[index], 0x21 + static_cast<int>(index), sizes[index]);
+        const auto change = [&](std::initializer_list<std::size_t> added, std::initializer_list<std::size_t> removed) {
+            auto* mutation = GuestAllocations::GuestAllocationsBegin_nid_postfix();
+            for (const auto index : removed) GuestAllocations::GuestAllocationsRemove_nid_postfix(mutation, heaps[index]);
+            for (const auto index : added) GuestAllocations::GuestAllocationsAdd_nid_postfix(mutation, heaps[index], sizes[index], true, false, true);
+            GuestAllocations::GuestAllocationsEnd_nid_postfix(mutation);
+        };
+        const auto mirrored = [&](std::size_t index) {
+            GuestBufferMemory leased(context);
+            leased.AcquireRegistered();
+            leased.Upload(true);
+            const auto ranges = leased.AddressRanges();
+            const auto begin = reinterpret_cast<std::uintptr_t>(heaps[index]);
+            const auto found = std::find_if(ranges.begin(), ranges.end(), [&](const auto& entry) { return entry.begin == begin && entry.end == begin + sizes[index]; });
+            Require(found != ranges.end(), "a mirrored heap range is missing from the BDA table");
+            const auto last = access.addressBytes(found->deviceAddress)[sizes[index] - 1];
+            leased.WriteBack();
+            return last;
+        };
+        sweep();
+        const auto before = MirrorCounters();
+        change({0}, {});
+        Require(mirrored(0) == std::byte{0x21}, "the first heap range was not mirrored");
+        const auto one = MirrorCounters();
+        access.limitMemory(large - 1);
+        change({1}, {0});
+        Require(mirrored(1) == std::byte{0x22}, "a heap mirror past APS5_HEAP_MIRROR_MIB was not made in the memory of the expired mirror");
+        const auto swept = MirrorCounters();
+        Require(swept.heapMirrors == one.heapMirrors && swept.heapBytes == one.heapBytes, "the expired heap mirror was not swept before the allocation");
+        access.limitMemory(small - 1);
+        change({2}, {});
+        char expected[64];
+        std::snprintf(expected, sizeof(expected), "heap mirror of 0x%llx+0x%llx: ", static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(heaps[2])), static_cast<unsigned long long>(small));
+        const auto attempts = access.allocationAttempts();
+        bool refused = false;
+        try {
+            mirrored(2);
+        } catch (const std::runtime_error& error) {
+            const std::string what = error.what();
+            refused = what.find(expected) != std::string::npos && what.find("Vulkan result -2") != std::string::npos;
+        }
+        Require(refused, "a heap mirror the memory cannot hold did not fail its build with the Vulkan result");
+        Require(access.allocationAttempts() == attempts + 1, "a refused heap mirror was allocated again");
+        Require(MirrorCounters().heapMirrors == swept.heapMirrors && MirrorCounters().heapBytes == swept.heapBytes, "a refused heap mirror was registered");
+        access.limitMemory(std::nullopt);
+        Require(mirrored(2) == std::byte{0x23} && MirrorCounters().heapMirrors == swept.heapMirrors + 1, "a heap mirror was not made once the memory was free again");
+        change({}, {1, 2});
+        sweep();
+        Require(MirrorCounters().heapMirrors == before.heapMirrors && MirrorCounters().heapBytes == before.heapBytes, "the heap mirrors outlived their ranges");
+#ifdef _WIN32
+        GuestArena::GuestArenaReset_nid_postfix(raw, total);
+#endif
+        GuestArena::GuestArenaRelease_nid_postfix(raw, total);
+    }
 #ifdef _WIN32
     GuestArena::GuestArenaReset_nid_postfix(block, bytes);
 #endif
     GuestArena::GuestArenaRelease_nid_postfix(block, bytes);
 }
 
+}
+
+void gpuMappingTests(const Context& context) {
+    constexpr std::size_t bytes = 65536;
+    auto* cpu = static_cast<std::byte*>(::operator new(bytes, std::align_val_t{bytes}));
+    auto* gpu = static_cast<std::byte*>(::operator new(bytes, std::align_val_t{bytes}));
+    {
+        GuestAllocations::Mutation mutation;
+        mutation.Add(cpu, bytes, true, true, false);
+        mutation.Add(gpu, bytes, true, true, true);
+    }
+    {
+        GuestBufferMemory leased(context);
+        leased.AcquireRegistered();
+        leased.Upload(true);
+        const auto ranges = leased.AddressRanges();
+        const auto has = [&](const std::byte* block) { return std::any_of(ranges.begin(), ranges.end(), [&](const auto& range) { return range.begin == reinterpret_cast<std::uintptr_t>(block); }); };
+        Require(has(gpu), "a GPU-mapped range is missing from the BDA table");
+        Require(!has(cpu), "a range mapped without GPU access is in the BDA table");
+        leased.WriteBack();
+    }
+    {
+        GuestAllocations::Mutation mutation;
+        mutation.Remove(cpu);
+        mutation.Remove(gpu);
+    }
+    ::operator delete(cpu, std::align_val_t{bytes});
+    ::operator delete(gpu, std::align_val_t{bytes});
+}
+
+void stridedOverhangTests(const Context& context, const BdaTestAccess& access) {
+    constexpr std::size_t allocation = 0x8000;
+    constexpr std::uint32_t stride = 20;
+    constexpr std::uint32_t records = (allocation + stride - 1) / stride;
+    auto* block = static_cast<std::byte*>(::operator new(allocation * 2, std::align_val_t{allocation}));
+    std::memset(block, 0x5a, allocation * 2);
+    {
+        GuestAllocations::Mutation mutation;
+        mutation.Add(block, allocation, true, false, true);
+    }
+    const auto address = reinterpret_cast<std::uintptr_t>(block);
+    ShaderRecompiler::RecompileResult shader;
+    auto buffer = binding(Role::GuestBuffers, 6);
+    buffer.guestDescriptor = {static_cast<std::uint32_t>(address), (static_cast<std::uint32_t>(address >> 32) & 0xffffu) | (stride << 16u), records, 0x31000000u};
+    buffer.bufferWritten = {false};
+    shader.bindings = {buffer};
+    CompiledShader compiled{ShaderRecompiler::ShaderStage::Compute, &shader, 0};
+    {
+        ShaderResources resources(context, compiled);
+        Require(access.descriptor(6).range == allocation, "a strided buffer's rounded-up last record was bound past its allocation");
+        resources.WriteBack();
+    }
+    {
+        GuestAllocations::Mutation mutation;
+        mutation.Add(block + allocation, allocation, true, false, true);
+    }
+    {
+        ShaderResources resources(context, compiled);
+        Require(access.descriptor(6).range == allocation, "a strided buffer's rounded-up last record was bound into the next allocation");
+        resources.WriteBack();
+    }
+    {
+        GuestAllocations::Mutation mutation;
+        mutation.Remove(block + allocation);
+    }
+    buffer.guestDescriptor[2] = records - 1;
+    shader.bindings = {buffer};
+    {
+        ShaderResources resources(context, compiled);
+        Require(access.descriptor(6).range == static_cast<VkDeviceSize>(records - 1) * stride, "a strided buffer inside its allocation was shortened");
+        resources.WriteBack();
+    }
+    {
+        GuestAllocations::Mutation mutation;
+        mutation.Remove(block);
+    }
+    ::operator delete(block, std::align_val_t{allocation});
 }
 
 void RunBdaResourceTests(const Context& context, const BdaTestAccess& access) {
@@ -244,7 +625,9 @@ void RunBdaResourceTests(const Context& context, const BdaTestAccess& access) {
     GuestBufferMemory memory(context);
     memory.AddWritable(address, sizeof(guest));
     memory.AddWritable(address + 16, 16);
+    Require(memory.CopiedBytes() == 0, "a region counted as copied before its upload");
     memory.Upload(true);
+    Require(memory.CopiedBytes() == sizeof(guest), "copied bytes " + std::to_string(memory.CopiedBytes()) + " do not match the one region copied");
     std::uint32_t adjustment = 0;
     const auto first = memory.Descriptor(address, sizeof(guest), adjustment);
     Require(adjustment == 0, "a view at its owner's start is bound off it");
@@ -282,7 +665,8 @@ void RunBdaResourceTests(const Context& context, const BdaTestAccess& access) {
         control.bindings.push_back(writable);
         const std::array<CompiledShader, 1> stages{{{ShaderRecompiler::ShaderStage::TessellationControl, &control, 0}}};
         const std::array<GuestMemorySnapshot, 1> unusedSnapshots{{{0, source}}};
-        ShaderResources resources(disabled, stages, ColorTarget{}, 0, 0, unusedSnapshots);
+        ShaderResources resources(disabled, stages, ColorTarget{}, 0, 0, 0, unusedSnapshots);
+        Require(ShaderResources::NeverReusable(stages) && !resources.Reusable(), "a fault-buffer build is reusable");
         const auto fault = access.bytes(access.descriptor(5).buffer);
         for (const auto byte : fault) Require(byte == std::byte{}, "rect-list fault buffer was not initialized");
         const ShaderRecompiler::BdaAbi::Fault report{ShaderRecompiler::BdaAbi::FaultState::Ready, ShaderRecompiler::BdaAbi::FaultReason::InvalidRectangle, 0, 0, 0, 0, 0};
@@ -296,6 +680,11 @@ void RunBdaResourceTests(const Context& context, const BdaTestAccess& access) {
     }
     {
         ShaderResources resources(context, compiled, snapshots);
+        Require(ShaderResources::NeverReusable(std::span<const CompiledShader>(&compiled, 1)) && !resources.Reusable(), "an address-based build is reusable");
+        ShaderRecompiler::RecompileResult plain;
+        plain.bindings = {binding(Role::GuestBuffers, 6)};
+        const CompiledShader plainStage{ShaderRecompiler::ShaderStage::Compute, &plain, 0};
+        Require(!ShaderResources::NeverReusable(std::span<const CompiledShader>(&plainStage, 1)), "a build without address tables or a fault buffer is refused the resource cache");
         const auto table = access.bytes(access.descriptor(4).buffer);
         ShaderRecompiler::BdaAbi::Header header{};
         ShaderRecompiler::BdaAbi::Range range{};
@@ -385,7 +774,13 @@ void RunBdaResourceTests(const Context& context, const BdaTestAccess& access) {
         const auto dropped = AddressSpaceCounters();
         if (dropped.enabled) Require(dropped.waiterDrops == after.waiterDrops + 1 && LeaseCounters().cacheDrops == dropped.waiterDrops, "the free did not drop the cached address space");
     }
+    importCrossingTests(context, access);
     heapMirrorTests(context, access);
+    importedHeapMirrorTests(context, access);
+    importWatchTests();
+    importedFreshTests(context);
+    gpuMappingTests(context);
+    stridedOverhangTests(context, access);
     Require(AddressCopyOverflow({{0x1000, 0x3000, 0x2000, "uncommitted pages"}}, 0x2000).empty(), "copies within the limit were refused");
     const auto copies = AddressCopyOverflow({{0x1000, 0x2000, 0x1000, "not mirrored"}, {0x10000, 0x30000, 0x18000, "uncommitted pages"}}, 0x2000);
     Require(!copies.empty() && copies.find("0x10000+0x20000 (0.1 MiB committed, uncommitted pages)") < copies.find("0x1000+0x1000"), "the copy limit does not name the largest copy first");

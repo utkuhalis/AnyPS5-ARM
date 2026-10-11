@@ -3,8 +3,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <initializer_list>
 #include <map>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -24,6 +26,10 @@ int APS5_VABI sceFontSupportExternalFonts(FontLibrary, std::uint32_t, std::uint3
 int APS5_VABI sceFontOpenFontSet(FontLibrary, std::uint32_t, std::uint32_t, const FontOpenDetail*, FontHandle*);
 int APS5_VABI sceFontOpenFontMemory(FontLibrary, const void*, std::uint32_t, const FontOpenDetail*, FontHandle*);
 int APS5_VABI sceFontCloseFont(FontHandle);
+int APS5_VABI sceFontSetScriptLanguage(FontHandle, int, int);
+int APS5_VABI sceFontGetScriptLanguage(FontHandle, int, int*);
+int APS5_VABI sceFontSetTypographicDesign(FontHandle, int, int);
+int APS5_VABI sceFontGetTypographicDesign(FontHandle, int, int*);
 int APS5_VABI sceFontSetResolutionDpi(FontHandle, std::uint32_t, std::uint32_t);
 int APS5_VABI sceFontGetResolutionDpi(FontHandle, std::uint32_t*, std::uint32_t*);
 int APS5_VABI sceFontSetScalePixel(FontHandle, float, float);
@@ -50,6 +56,14 @@ static void Check(bool value, int line) {
     }
 }
 #define Require(value) Check((value), __LINE__)
+
+static void SetFontDirectory(const std::filesystem::path& directory) {
+#ifdef _WIN32
+    Require(_putenv_s("ANYPS5_SYSTEM_FONTS", directory.string().c_str()) == 0);
+#else
+    Require(::setenv("ANYPS5_SYSTEM_FONTS", directory.string().c_str(), 1) == 0);
+#endif
+}
 
 static int allocations = 0;
 static void* APS5_VABI Allocate(void*, std::uint32_t size) {
@@ -118,6 +132,10 @@ static bool KerningIs(const FontKerning& kerning, float offsetX) {
 
 int main() {
     constexpr std::uint32_t SystemFontSet = 0x18070043u;
+    const std::filesystem::path fontRoot = std::filesystem::temp_directory_path() / ("anyps5_guest_font-" + std::to_string(std::random_device{}()));
+    std::filesystem::remove_all(fontRoot);
+    std::filesystem::create_directories(fontRoot);
+    SetFontDirectory(fontRoot);
     const FontMemoryInterface iface{Allocate, Release, nullptr, nullptr, nullptr, nullptr};
     FontMemory memory{};
     Require(sceFontMemoryInit(&memory, nullptr, 0, &iface, nullptr, nullptr, nullptr) == SCE_FONT_OK);
@@ -189,6 +207,17 @@ int main() {
 
     const std::vector<unsigned char> fontData = EmptyGlyphFont();
     Require(sceFontOpenFontMemory(library, fontData.data(), static_cast<std::uint32_t>(fontData.size()), nullptr, &font) == SCE_FONT_OK && font != nullptr);
+    int setting = -1;
+    Require(sceFontGetScriptLanguage(font, 3, &setting) == SCE_FONT_OK && setting == 0);
+    Require(sceFontSetScriptLanguage(font, 3, 7) == SCE_FONT_OK && sceFontSetScriptLanguage(font, 4, 9) == SCE_FONT_OK);
+    Require(sceFontGetScriptLanguage(font, 3, &setting) == SCE_FONT_OK && setting == 7);
+    Require(sceFontGetScriptLanguage(font, 4, &setting) == SCE_FONT_OK && setting == 9);
+    Require(sceFontGetScriptLanguage(font, 3, nullptr) == SCE_FONT_ERROR_INVALID_PARAMETER);
+    Require(sceFontSetScriptLanguage(nullptr, 3, 7) == SCE_FONT_ERROR_INVALID_FONT_HANDLE);
+    Require(sceFontSetTypographicDesign(font, 1, 2) == SCE_FONT_OK);
+    Require(sceFontGetTypographicDesign(font, 1, &setting) == SCE_FONT_OK && setting == 2);
+    Require(sceFontGetTypographicDesign(font, 5, &setting) == SCE_FONT_OK && setting == 0);
+    Require(sceFontGetTypographicDesign(nullptr, 1, &setting) == SCE_FONT_ERROR_INVALID_FONT_HANDLE);
     std::uint32_t hDpi = 1;
     std::uint32_t vDpi = 1;
     Require(sceFontGetResolutionDpi(font, &hDpi, &vDpi) == SCE_FONT_OK && hDpi == 72 && vDpi == 72);
@@ -288,4 +317,5 @@ int main() {
     Require(allocations == 0);
     Require(sceFontMemoryTerm(&memory) == SCE_FONT_OK);
     Require(sceFontMemoryTerm(&memory) == SCE_FONT_ERROR_INVALID_MEMORY);
+    std::filesystem::remove_all(fontRoot);
 }
