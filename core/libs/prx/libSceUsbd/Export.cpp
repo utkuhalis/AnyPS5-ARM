@@ -3,13 +3,52 @@
 #include "SceTypes.hpp"
 #include "prx/libc/include/General.hpp"
 
+#include <algorithm>
 #include <chrono>
+#include <cstdlib>
+#include <stdexcept>
 #include <string>
 #include <thread>
 
 namespace {
 
 constexpr std::int32_t SCE_USBD_ERROR_INVALID_ARG = static_cast<std::int32_t>(0x80240002);
+constexpr std::int32_t SCE_USBD_ERROR_NO_DEVICE = static_cast<std::int32_t>(0x80240004);
+constexpr std::int32_t SCE_USBD_ERROR_NOT_FOUND = static_cast<std::int32_t>(0x80240005);
+constexpr std::uint8_t TRANSFER_TYPE_INTERRUPT = 3;
+
+struct UsbdIsoPacketDescriptor {
+    std::uint32_t length;
+    std::uint32_t actualLength;
+    std::int32_t status;
+};
+
+struct UsbdTransfer;
+using UsbdTransferCallback = void (APS5_VABI*)(UsbdTransfer* transfer);
+
+struct UsbdTransfer {
+    void* deviceHandle;
+    std::uint8_t flags;
+    std::uint8_t endpoint;
+    std::uint8_t type;
+    std::uint32_t timeout;
+    std::int32_t status;
+    std::int32_t length;
+    std::int32_t actualLength;
+    UsbdTransferCallback callback;
+    void* userData;
+    std::uint8_t* buffer;
+    std::int32_t numIsoPackets;
+};
+
+// The isochronous packet descriptors follow numIsoPackets without padding.
+constexpr std::size_t ISO_PACKET_DESC_OFFSET = offsetof(UsbdTransfer, numIsoPackets) + sizeof(std::int32_t);
+
+// The device list is always empty, so no device, device handle or configuration descriptor can
+// have reached the caller.
+[[noreturn]] void RejectForeign(const char* function, const char* object) {
+    throw std::invalid_argument(std::string(function) + ": " + object + " was not obtained from this library (no USB device is attached)");
+}
 
 struct UsbdTimeval {
     std::int64_t seconds;
@@ -46,129 +85,152 @@ std::int32_t APS5_VABI sceUsbdHandleEventsTimeout(const UsbdTimeval* timeout) {
     return 0;
 }
 
-int APS5_VABI sceUsbdAllocTransfer() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+UsbdTransfer* APS5_VABI sceUsbdAllocTransfer(std::int32_t isoPackets) {
+    if (isoPackets < 0) return nullptr;
+    const std::size_t size = ISO_PACKET_DESC_OFFSET + static_cast<std::size_t>(isoPackets) * sizeof(UsbdIsoPacketDescriptor);
+    auto* transfer = static_cast<UsbdTransfer*>(std::calloc(1, std::max(size, sizeof(UsbdTransfer))));
+    if (transfer == nullptr) return nullptr;
+    transfer->numIsoPackets = isoPackets;
+    return transfer;
 }
 
-int APS5_VABI sceUsbdAttachKernelDriver() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+// The buffer belongs to the guest allocator, so a FREE_BUFFER flag is not honoured here.
+void APS5_VABI sceUsbdFreeTransfer(UsbdTransfer* transfer) {
+    std::free(transfer);
 }
 
-int APS5_VABI sceUsbdCancelTransfer() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+void APS5_VABI sceUsbdFillInterruptTransfer(UsbdTransfer* transfer, void* deviceHandle, std::uint8_t endpoint, std::uint8_t* buffer,
+    std::int32_t length, UsbdTransferCallback callback, void* userData, std::uint32_t timeout) {
+    if (transfer == nullptr) throw std::invalid_argument(std::string(__func__) + ": null transfer");
+    transfer->deviceHandle = deviceHandle;
+    transfer->endpoint = endpoint;
+    transfer->type = TRANSFER_TYPE_INTERRUPT;
+    transfer->timeout = timeout;
+    transfer->buffer = buffer;
+    transfer->length = length;
+    transfer->callback = callback;
+    transfer->userData = userData;
 }
 
-int APS5_VABI sceUsbdCheckConnected() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceUsbdSubmitTransfer(UsbdTransfer* transfer) {
+    if (transfer == nullptr) return SCE_USBD_ERROR_INVALID_ARG;
+    return SCE_USBD_ERROR_NO_DEVICE;
 }
 
-int APS5_VABI sceUsbdClaimInterface() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+// Submission always fails, so no transfer is ever in flight.
+std::int32_t APS5_VABI sceUsbdCancelTransfer(UsbdTransfer* transfer) {
+    if (transfer == nullptr) return SCE_USBD_ERROR_INVALID_ARG;
+    return SCE_USBD_ERROR_NOT_FOUND;
 }
 
-int APS5_VABI sceUsbdClose() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceUsbdEventHandlingOk() {
+    return 1;
 }
 
-int APS5_VABI sceUsbdControlTransfer() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+void* APS5_VABI sceUsbdRefDevice(void* device) {
+    if (device == nullptr) throw std::invalid_argument(std::string(__func__) + ": null device");
+    RejectForeign(__func__, "device");
 }
 
-int APS5_VABI sceUsbdEventHandlingOk() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+void APS5_VABI sceUsbdUnrefDevice(void* device) {
+    if (device != nullptr) RejectForeign(__func__, "device");
 }
 
-int APS5_VABI sceUsbdFillInterruptTransfer() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::uint8_t APS5_VABI sceUsbdGetBusNumber(void* device) {
+    if (device == nullptr) throw std::invalid_argument(std::string(__func__) + ": null device");
+    RejectForeign(__func__, "device");
 }
 
-int APS5_VABI sceUsbdFreeConfigDescriptor() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::uint8_t APS5_VABI sceUsbdGetDeviceAddress(void* device) {
+    if (device == nullptr) throw std::invalid_argument(std::string(__func__) + ": null device");
+    RejectForeign(__func__, "device");
 }
 
-int APS5_VABI sceUsbdFreeTransfer() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceUsbdGetDeviceDescriptor(void* device, void* descriptor) {
+    if (device == nullptr || descriptor == nullptr) return SCE_USBD_ERROR_INVALID_ARG;
+    return SCE_USBD_ERROR_NO_DEVICE;
 }
 
-int APS5_VABI sceUsbdGetActiveConfigDescriptor() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceUsbdGetActiveConfigDescriptor(void* device, void** config) {
+    if (device == nullptr || config == nullptr) return SCE_USBD_ERROR_INVALID_ARG;
+    *config = nullptr;
+    return SCE_USBD_ERROR_NO_DEVICE;
 }
 
-int APS5_VABI sceUsbdGetBusNumber() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceUsbdGetConfigDescriptor(void* device, std::uint8_t configIndex, void** config) {
+    (void)configIndex;
+    if (device == nullptr || config == nullptr) return SCE_USBD_ERROR_INVALID_ARG;
+    *config = nullptr;
+    return SCE_USBD_ERROR_NO_DEVICE;
 }
 
-int APS5_VABI sceUsbdGetConfigDescriptor() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+void APS5_VABI sceUsbdFreeConfigDescriptor(void* config) {
+    if (config != nullptr) RejectForeign(__func__, "configuration descriptor");
 }
 
-int APS5_VABI sceUsbdGetDeviceAddress() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceUsbdOpen(void* device, void** deviceHandle) {
+    if (device == nullptr || deviceHandle == nullptr) return SCE_USBD_ERROR_INVALID_ARG;
+    *deviceHandle = nullptr;
+    return SCE_USBD_ERROR_NO_DEVICE;
 }
 
-int APS5_VABI sceUsbdGetDeviceDescriptor() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+void APS5_VABI sceUsbdClose(void* deviceHandle) {
+    if (deviceHandle != nullptr) RejectForeign(__func__, "device handle");
 }
 
-int APS5_VABI sceUsbdGetStringDescriptor() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceUsbdCheckConnected(void* deviceHandle) {
+    if (deviceHandle == nullptr) return SCE_USBD_ERROR_INVALID_ARG;
+    return SCE_USBD_ERROR_NO_DEVICE;
 }
 
-int APS5_VABI sceUsbdKernelDriverActive() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceUsbdSetConfiguration(void* deviceHandle, std::int32_t configuration) {
+    (void)configuration;
+    if (deviceHandle == nullptr) return SCE_USBD_ERROR_INVALID_ARG;
+    return SCE_USBD_ERROR_NO_DEVICE;
 }
 
-int APS5_VABI sceUsbdOpen() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceUsbdClaimInterface(void* deviceHandle, std::int32_t interfaceNumber) {
+    if (deviceHandle == nullptr || interfaceNumber < 0) return SCE_USBD_ERROR_INVALID_ARG;
+    return SCE_USBD_ERROR_NO_DEVICE;
 }
 
-int APS5_VABI sceUsbdRefDevice() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceUsbdReleaseInterface(void* deviceHandle, std::int32_t interfaceNumber) {
+    if (deviceHandle == nullptr || interfaceNumber < 0) return SCE_USBD_ERROR_INVALID_ARG;
+    return SCE_USBD_ERROR_NO_DEVICE;
 }
 
-int APS5_VABI sceUsbdReleaseInterface() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceUsbdResetDevice(void* deviceHandle) {
+    if (deviceHandle == nullptr) return SCE_USBD_ERROR_INVALID_ARG;
+    return SCE_USBD_ERROR_NO_DEVICE;
 }
 
-int APS5_VABI sceUsbdResetDevice() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceUsbdKernelDriverActive(void* deviceHandle, std::int32_t interfaceNumber) {
+    if (deviceHandle == nullptr || interfaceNumber < 0) return SCE_USBD_ERROR_INVALID_ARG;
+    return SCE_USBD_ERROR_NO_DEVICE;
 }
 
-int APS5_VABI sceUsbdSetConfiguration() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceUsbdAttachKernelDriver(void* deviceHandle, std::int32_t interfaceNumber) {
+    if (deviceHandle == nullptr || interfaceNumber < 0) return SCE_USBD_ERROR_INVALID_ARG;
+    return SCE_USBD_ERROR_NO_DEVICE;
 }
 
-int APS5_VABI sceUsbdSubmitTransfer() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceUsbdControlTransfer(void* deviceHandle, std::uint8_t requestType, std::uint8_t request, std::uint16_t value,
+    std::uint16_t index, std::uint8_t* data, std::uint16_t length, std::uint32_t timeout) {
+    (void)requestType;
+    (void)request;
+    (void)value;
+    (void)index;
+    (void)timeout;
+    if (deviceHandle == nullptr || (data == nullptr && length != 0)) return SCE_USBD_ERROR_INVALID_ARG;
+    return SCE_USBD_ERROR_NO_DEVICE;
 }
 
-int APS5_VABI sceUsbdUnrefDevice() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceUsbdGetStringDescriptor(void* deviceHandle, std::uint8_t descriptorIndex, std::uint16_t languageId, std::uint8_t* data,
+    std::int32_t length) {
+    (void)descriptorIndex;
+    (void)languageId;
+    if (deviceHandle == nullptr || data == nullptr || length <= 0) return SCE_USBD_ERROR_INVALID_ARG;
+    return SCE_USBD_ERROR_NO_DEVICE;
 }
 
 }

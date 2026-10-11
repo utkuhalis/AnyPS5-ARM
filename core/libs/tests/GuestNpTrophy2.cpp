@@ -1,5 +1,6 @@
 #include "prx/libc/include/general/VabiMacros.hpp"
 #include "prx/libSceNpTrophy2/include/NpTrophy2Types.hpp"
+#include <cstddef>
 #include <cstdlib>
 #include <stdexcept>
 
@@ -7,6 +8,7 @@ extern "C" {
 int APS5_VABI sceNpTrophy2RegisterUnlockCallback(void*, void*);
 int APS5_VABI sceNpTrophy2UnregisterUnlockCallback();
 int APS5_VABI sceNpTrophy2GetGameInfo(int, int, NpTrophy2GameDetails*, NpTrophy2GameData*);
+int APS5_VABI sceNpTrophy2GetRewardIcon(int, int, int, void*, size_t*);
 }
 
 static void Require(bool value) { if (!value) std::abort(); }
@@ -33,4 +35,13 @@ int main() {
         threw = true;
     }
     Require(threw);
+
+    size_t size = 99;
+    threw = false;
+    try {
+        sceNpTrophy2GetRewardIcon(1, 1, 0, nullptr, &size);
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    Require(threw && size == 0);
 }

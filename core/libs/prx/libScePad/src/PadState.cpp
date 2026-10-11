@@ -20,6 +20,9 @@ namespace {
     std::uint64_t lastFuseTime = 0;
     float biasIntegral[3] = {0.0f, 0.0f, 0.0f};
     bool tiltCorrection = true;
+    bool angularDeadband = false;
+    bool angularBiasCorrection = false;
+    std::array<float, 3> gyroBias{0.0f, 0.0f, 0.0f};
     std::uint8_t nextTouchId = 0;
     bool prevTouchActive[2] = {false, false};
     std::uint8_t touchIds[2] = {0, 0};
@@ -57,6 +60,30 @@ namespace {
         orientation.y = q.y + q.w * hy - q.x * hz + q.z * hx;
         orientation.z = q.z + q.w * hz + q.x * hy - q.y * hx;
         normalize(orientation);
+    }
+
+    // Rates below about one degree per second are sensor noise on a resting controller.
+    constexpr float kDeadbandRadians = 0.0175f;
+    constexpr float kStationaryRadians = 0.05f;
+    constexpr float kBiasLearnRate = 0.02f;
+
+    std::array<float, 3> correctAngularVelocity(std::array<float, 3> gyro, const std::array<float, 3>& accel) {
+        if (angularBiasCorrection) {
+            constexpr float kGravity = 9.80665f;
+            const float an = std::sqrt(accel[0] * accel[0] + accel[1] * accel[1] + accel[2] * accel[2]);
+            bool stationary = std::fabs(an - kGravity) < 0.5f;
+            for (int axis = 0; axis < 3; ++axis) stationary = stationary && std::fabs(gyro[axis] - gyroBias[axis]) < kStationaryRadians;
+            for (int axis = 0; axis < 3; ++axis) {
+                if (stationary) gyroBias[axis] += kBiasLearnRate * (gyro[axis] - gyroBias[axis]);
+                gyro[axis] -= gyroBias[axis];
+            }
+        }
+        if (angularDeadband) {
+            for (float& rate : gyro) {
+                if (std::fabs(rate) < kDeadbandRadians) rate = 0.0f;
+            }
+        }
+        return gyro;
     }
 
     void encodeZones(std::uint8_t* dst, std::uint8_t mode, const std::uint8_t* strengths, int count, std::uint8_t frequency) {
@@ -114,7 +141,7 @@ PadData Pad::ReadState() {
     const bool live = state.hasMotion && output.motionEnabled;
     const std::array<float, 3> rest{0.0f, 9.80665f, 0.0f};
     const std::array<float, 3>& accel = live ? state.accel : rest;
-    const std::array<float, 3> gyro = live ? state.gyro : std::array<float, 3>{0.0f, 0.0f, 0.0f};
+    const std::array<float, 3> gyro = live ? correctAngularVelocity(state.gyro, accel) : std::array<float, 3>{0.0f, 0.0f, 0.0f};
     if (live) {
         float dt = lastFuseTime != 0 && now > lastFuseTime ? static_cast<float>(now - lastFuseTime) * 1e-6f : 0.0f;
         dt = std::min(dt, 0.1f);
@@ -261,6 +288,17 @@ void Pad::SetTiltCorrection(bool enabled) {
     std::lock_guard lock(stateMutex);
     tiltCorrection = enabled;
     biasIntegral[0] = biasIntegral[1] = biasIntegral[2] = 0.0f;
+}
+
+void Pad::SetAngularVelocityDeadband(bool enabled) {
+    std::lock_guard lock(stateMutex);
+    angularDeadband = enabled;
+}
+
+void Pad::SetAngularVelocityBiasCorrection(bool enabled) {
+    std::lock_guard lock(stateMutex);
+    angularBiasCorrection = enabled;
+    gyroBias = {0.0f, 0.0f, 0.0f};
 }
 
 void Pad::SetMotionEnabled(bool enabled) {

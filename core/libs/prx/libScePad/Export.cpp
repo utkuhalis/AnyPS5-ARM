@@ -144,17 +144,28 @@ int APS5_VABI scePadOpenExt(int userId, int type, int index, const void* param) 
  if (!ValidPort(userId, type, index) || param == nullptr) {
   return PAD_ERROR_INVALID_ARG;
  }
- if (type != PAD_PORT_TYPE_SPECIAL) NotImplemented_nid_no_patch(__func__);
- return PAD_ERROR_DEVICE_NOT_CONNECTED;
+ // No special controller (wheel, stick, VR controller) is ever attached; the standard ports open the DualSense.
+ if (type == PAD_PORT_TYPE_SPECIAL) return PAD_ERROR_DEVICE_NOT_CONNECTED;
+ return scePadOpen_nid_postfix(userId, type, index, param);
 }
 
 int APS5_VABI scePadReadExt() { NotImplemented_nid_no_patch(__func__); return 0; }
 
-int APS5_VABI scePadGetFeatureReport() { NotImplemented_nid_no_patch(__func__); return 0; }
+// Raw HID reports address special controllers, and since none can be opened no handle reaches them.
+int APS5_VABI scePadGetFeatureReport(int handle) {
+ (void)handle;
+ return PAD_ERROR_INVALID_HANDLE;
+}
 
-int APS5_VABI scePadSetFeatureReport() { NotImplemented_nid_no_patch(__func__); return 0; }
+int APS5_VABI scePadSetFeatureReport(int handle) {
+ (void)handle;
+ return PAD_ERROR_INVALID_HANDLE;
+}
 
-int APS5_VABI scePadOutputReport() { NotImplemented_nid_no_patch(__func__); return 0; }
+int APS5_VABI scePadOutputReport(int handle) {
+ (void)handle;
+ return PAD_ERROR_INVALID_HANDLE;
+}
 
 int APS5_VABI scePadReadState(int handle, PadData* data);
 
@@ -189,7 +200,7 @@ int APS5_VABI scePadResetOrientation(int handle) {
 
 int APS5_VABI scePadSetAngularVelocityDeadbandState(int handle, bool enable) {
  if (handle != PAD_HANDLE) return PAD_ERROR_INVALID_HANDLE;
- if (enable) NotImplemented_nid_no_patch(__func__);
+ Pad::SetAngularVelocityDeadband(enable);
  return PAD_OK;
 }
 
@@ -250,14 +261,18 @@ int APS5_VABI scePadSetVibrationTriggerEffectWeakWhileEmbeddedMicInUse(bool enab
  return PAD_OK;
 }
 
-int APS5_VABI scePadVrControllerGetDeviceInformation() {
- NotImplemented_nid_no_patch(__func__);
- return 0;
+// VR controller ports are never opened, so no handle refers to a VR controller.
+int APS5_VABI scePadVrControllerGetDeviceInformation(int handle, void* info) {
+ (void)info;
+ (void)handle;
+ return PAD_ERROR_INVALID_HANDLE;
 }
 
-int APS5_VABI scePadVrControllerRead() {
- NotImplemented_nid_no_patch(__func__);
- return 0;
+int APS5_VABI scePadVrControllerRead(int handle, void* data, int num) {
+ (void)data;
+ (void)num;
+ (void)handle;
+ return PAD_ERROR_INVALID_HANDLE;
 }
 
 int APS5_VABI scePadIsRemoteController(int handle, bool* remote) {
@@ -270,7 +285,7 @@ int APS5_VABI scePadIsRemoteController(int handle, bool* remote) {
 
 int APS5_VABI scePadSetAngularVelocityBiasCorrectionState(int handle, bool enabled) {
  if (handle != PAD_HANDLE) return PAD_ERROR_INVALID_HANDLE;
- if (enabled) NotImplemented_nid_no_patch(__func__);
+ Pad::SetAngularVelocityBiasCorrection(enabled);
  return PAD_OK;
 }
 

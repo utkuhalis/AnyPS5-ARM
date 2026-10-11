@@ -9,6 +9,8 @@ constexpr std::int32_t SCE_HMD2_ERROR_UNSUPPORTED_FEATURE = static_cast<std::int
 
 }
 
+// No PlayStation VR2 headset can be attached: initialization reports the feature as unsupported, so
+// every device, gaze and reprojection call reports the same.
 extern "C" {
 
 std::int32_t APS5_VABI sceHmd2Initialize(const void* param) {
@@ -16,84 +18,68 @@ std::int32_t APS5_VABI sceHmd2Initialize(const void* param) {
     return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
-int APS5_VABI sceHmd2Close() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceHmd2Close() {
+    return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
-int APS5_VABI sceHmd2GazeGetResultForFoveatedRendering() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceHmd2GazeGetResultForFoveatedRendering() {
+    return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
-int APS5_VABI sceHmd2GetDeviceInformation() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceHmd2GetDeviceInformation() {
+    return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
-int APS5_VABI sceHmd2GetFieldOfViewWithoutHandle() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceHmd2GetFieldOfViewWithoutHandle() {
+    return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
-int APS5_VABI sceHmd2Open() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceHmd2Open() {
+    return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
-int APS5_VABI sceHmd2ReprojectionBeginFrame() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceHmd2ReprojectionBeginFrame() {
+    return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
-int APS5_VABI sceHmd2ReprojectionDisableVrMode() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceHmd2ReprojectionDisableVrMode() {
+    return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
-int APS5_VABI sceHmd2ReprojectionEnableVrMode() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceHmd2ReprojectionEnableVrMode() {
+    return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
-int APS5_VABI sceHmd2ReprojectionGetPredictedDisplayTime() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceHmd2ReprojectionGetPredictedDisplayTime() {
+    return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
-int APS5_VABI sceHmd2ReprojectionInitialize() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceHmd2ReprojectionInitialize() {
+    return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
-int APS5_VABI sceHmd2ReprojectionQueryBufferSizeAlign() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceHmd2ReprojectionQueryBufferSizeAlign() {
+    return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
-int APS5_VABI sceHmd2ReprojectionQueryDisplayBufferSizeAlign() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceHmd2ReprojectionQueryDisplayBufferSizeAlign() {
+    return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
-int APS5_VABI sceHmd2ReprojectionSetAllowPositionalReprojection() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceHmd2ReprojectionSetAllowPositionalReprojection() {
+    return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
-int APS5_VABI sceHmd2ReprojectionSetParamWithBuffer() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceHmd2ReprojectionSetParamWithBuffer() {
+    return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
-int APS5_VABI sceHmd2ReprojectionSetRenderConfig() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceHmd2ReprojectionSetRenderConfig() {
+    return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
-int APS5_VABI sceHmd2SetVibration() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceHmd2SetVibration() {
+    return SCE_HMD2_ERROR_UNSUPPORTED_FEATURE;
 }
 
 }

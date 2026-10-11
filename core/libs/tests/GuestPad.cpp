@@ -3,7 +3,9 @@
 #include "prx/libScePad/include/PadState.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
+#include <initializer_list>
 #include <thread>
 
 extern "C" {
@@ -21,6 +23,11 @@ int APS5_VABI scePadResetOrientation(int);
 int APS5_VABI scePadSetAngularVelocityDeadbandState(int, bool);
 int APS5_VABI scePadSetAngularVelocityBiasCorrectionState(int, bool);
 int APS5_VABI scePadIsRemoteController(int, bool*);
+int APS5_VABI scePadGetFeatureReport(int);
+int APS5_VABI scePadSetFeatureReport(int);
+int APS5_VABI scePadOutputReport(int);
+int APS5_VABI scePadVrControllerGetDeviceInformation(int, void*);
+int APS5_VABI scePadVrControllerRead(int, void*, int);
 }
 
 static void Require(bool value) { if (!value) std::abort(); }
@@ -71,6 +78,41 @@ static void CheckReadStateHandle(int handle) {
     Require(scePadReadState(handle, &data) == PAD_OK);
 }
 
+static void CheckAngularVelocityFilters(int handle) {
+    PadInputState resting;
+    resting.hasMotion = true;
+    resting.gyro = {0.01f, -0.01f, 0.5f};
+    PadPublishInput_nid_postfix(resting);
+    Require(Pad::ReadState().angular_velocity_x == 0.01f);
+    Require(scePadSetAngularVelocityDeadbandState(handle, true) == PAD_OK);
+    PadData data = Pad::ReadState();
+    Require(data.angular_velocity_x == 0.0f && data.angular_velocity_y == 0.0f && data.angular_velocity_z == 0.5f);
+    Require(scePadSetAngularVelocityDeadbandState(handle, false) == PAD_OK);
+
+    PadInputState drifting;
+    drifting.hasMotion = true;
+    drifting.gyro = {0.03f, 0.0f, 0.0f};
+    PadPublishInput_nid_postfix(drifting);
+    Require(scePadSetAngularVelocityBiasCorrectionState(handle, true) == PAD_OK);
+    float rate = Pad::ReadState().angular_velocity_x;
+    for (int i = 0; i < 300; ++i) rate = Pad::ReadState().angular_velocity_x;
+    Require(rate < 0.001f);
+    Require(scePadSetAngularVelocityBiasCorrectionState(handle, false) == PAD_OK);
+    Require(Pad::ReadState().angular_velocity_x == 0.03f);
+    PadPublishInput_nid_postfix(PadInputState{});
+}
+
+static void CheckAbsentDevices(int handle) {
+    std::uint8_t buffer[64]{};
+    for (int target : {handle, handle + 1}) {
+        Require(scePadGetFeatureReport(target) == PAD_ERROR_INVALID_HANDLE);
+        Require(scePadSetFeatureReport(target) == PAD_ERROR_INVALID_HANDLE);
+        Require(scePadOutputReport(target) == PAD_ERROR_INVALID_HANDLE);
+        Require(scePadVrControllerGetDeviceInformation(target, buffer) == PAD_ERROR_INVALID_HANDLE);
+        Require(scePadVrControllerRead(target, buffer, 1) == PAD_ERROR_INVALID_HANDLE);
+    }
+}
+
 static void CheckRemoteController(int handle) {
     bool remote = true;
     Require(scePadIsRemoteController(handle + 1, &remote) == PAD_ERROR_INVALID_HANDLE);
@@ -101,6 +143,8 @@ int main() {
     CheckTouchContact();
     CheckReadStateHandle(handle);
     CheckRemoteController(handle);
+    CheckAngularVelocityFilters(handle);
+    CheckAbsentDevices(handle);
     Require(scePadSetVibrationMode(handle, 1) == 0);
     Require(scePadSetVibrationMode(handle, 2) == 0);
     Require(scePadSetVibrationMode(handle, 3) == PAD_ERROR_INVALID_ARG);
@@ -115,4 +159,7 @@ int main() {
     Require(scePadSetAngularVelocityDeadbandState(handle + 1, false) == PAD_ERROR_INVALID_HANDLE);
     Require(scePadSetAngularVelocityBiasCorrectionState(handle, false) == PAD_OK);
     Require(scePadSetAngularVelocityBiasCorrectionState(handle + 1, false) == PAD_ERROR_INVALID_HANDLE);
+    Require(scePadOpenExt(user, PAD_PORT_TYPE_STANDARD, 0, wheel) == handle);
+    Require(scePadGetHandle(user, 0, 0) == handle);
+    Require(scePadClose_nid_postfix(handle) == 0);
 }

@@ -20,6 +20,7 @@ int APS5_VABI sceAppContentGetAddcontInfo(uint32_t, const NpUnifiedEntitlementLa
 int APS5_VABI sceAppContentGetAddcontInfoList(uint32_t, void*, uint32_t, uint32_t*);
 int APS5_VABI sceAppContentDownloadDataGetAvailableSpaceKb(const AppContentMountPoint*, size_t*);
 int APS5_VABI sceAppContentAppParamGetInt(uint32_t, int32_t*);
+int APS5_VABI sceAppContentAddcontEnqueueDownload(uint32_t, const NpUnifiedEntitlementLabel*);
 }
 
 static constexpr int ErrorParameter = static_cast<int>(0x80D90002);
@@ -123,6 +124,8 @@ int main() {
     Require(std::memcmp(info, untouchedInfo, sizeof(info)) == 0);
     Require(sceAppContentGetAddcontInfo(0, nullptr, info) == ErrorParameter);
     Require(sceAppContentGetAddcontInfo(0, &label, nullptr) == ErrorParameter);
+    Require(sceAppContentAddcontEnqueueDownload(0, &label) == ErrorDrmNoEntitlement);
+    Require(sceAppContentAddcontEnqueueDownload(0, nullptr) == ErrorParameter);
 
     uint32_t hitNum = 0x5a5a5a5a;
     Require(sceAppContentGetAddcontInfoList(0, nullptr, 0, &hitNum) == 0);

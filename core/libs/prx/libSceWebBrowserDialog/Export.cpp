@@ -64,19 +64,21 @@ int APS5_VABI sceWebBrowserDialogUpdateStatus(void) {
 }
 
 
-int APS5_VABI sceWebBrowserDialogSetCookie(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+// No browser runs, so cookies have nowhere to live: the calls validate and are accepted.
+int APS5_VABI sceWebBrowserDialogSetCookie(const void* param) {
+ if (g_status.load() == COMMON_DIALOG_STATUS_NONE) return COMMON_DIALOG_ERROR_NOT_INITIALIZED;
+ if (param == nullptr) return COMMON_DIALOG_ERROR_ARG_NULL;
+ return 0;
 }
 
-int APS5_VABI sceWebBrowserDialogOpenForPredeterminedContent() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceWebBrowserDialogOpenForPredeterminedContent(const void* param) {
+ return sceWebBrowserDialogOpen(param);
 }
 
-int APS5_VABI sceWebBrowserDialogResetCookie() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceWebBrowserDialogResetCookie(const void* param) {
+ if (g_status.load() == COMMON_DIALOG_STATUS_NONE) return COMMON_DIALOG_ERROR_NOT_INITIALIZED;
+ if (param == nullptr) return COMMON_DIALOG_ERROR_ARG_NULL;
+ return 0;
 }
 
 }

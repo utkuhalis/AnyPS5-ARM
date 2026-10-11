@@ -740,9 +740,10 @@ int APS5_VABI sceSaveDataDirNameSearchPs4(const SaveDataDirNameSearchCond* cond,
     return rc;
 }
 
-int APS5_VABI sceSaveDataConvert() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+// Conversion reads PS4 save data, and none exists on this console (see transferringMount).
+int APS5_VABI sceSaveDataConvert(const void* param) {
+    if (param == nullptr) return SAVE_DATA_ERROR_PARAMETER;
+    return SAVE_DATA_ERROR_NOT_FOUND;
 }
 
 int APS5_VABI sceSaveDataGetConvertProgress() {
