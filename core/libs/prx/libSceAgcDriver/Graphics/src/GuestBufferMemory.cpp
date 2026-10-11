@@ -616,11 +616,14 @@ const HostImport* importAllocation(const Context& context, HostImports& state, s
     GuestMemory::ImportWatched(base, bytes, [&] {
 #ifdef __APPLE__
         // MoltenVK drops GPU stores into a range imported while the write watch protects it
-        // (agc_driver_srgb8_color_target); opened for the import, the range stays watched afterwards.
-        GuestWriteWatch::GuestWriteWatchBeginHostWrite_nid_postfix(reinterpret_cast<const void*>(base), static_cast<std::size_t>(bytes));
-        GuestWriteWatch::GuestWriteWatchEndHostWrite_nid_postfix(reinterpret_cast<const void*>(base), static_cast<std::size_t>(bytes));
-#endif
+        // (agc_driver_srgb8_color_target): the import runs on open pages, which are re-armed right after it
+        // without counting as CPU stores, so GPU results already in the range stay valid.
+        GuestWriteWatch::GuestWriteWatchOpenImport_nid_postfix(reinterpret_cast<const void*>(base), static_cast<std::size_t>(bytes));
         step = createImport(context, entry, result);
+        GuestWriteWatch::GuestWriteWatchCloseImport_nid_postfix(reinterpret_cast<const void*>(base), static_cast<std::size_t>(bytes));
+#else
+        step = createImport(context, entry, result);
+#endif
         return step == nullptr;
     });
     entry.unwatched = step == nullptr && (entry.dmaBuf ? state.unwatchDmaBufImports : state.unwatchImports);
