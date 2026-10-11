@@ -11,6 +11,7 @@ int APS5_VABI sceAudioOut2Set3DLatency(int, std::uint32_t);
 int APS5_VABI sceAudioOut2MasteringInit(std::uint32_t);
 int APS5_VABI sceAudioOut2MasteringTerm();
 int APS5_VABI sceAudioOut2MasteringSetParam(const void*, std::uint32_t, std::uint32_t);
+int APS5_VABI sceAudioOut2EnableChat();
 }
 
 static void Require(bool value, const char* message) {
@@ -33,14 +34,15 @@ namespace {
 
 constexpr int systemUser = 0xFF;
 constexpr int user = 0x10000000;
+constexpr int invalidArgument = static_cast<int>(0x80260502);
 
 void TestSet3DLatency() {
     Require(sceAudioOut2Set3DLatency(systemUser, 2) == 0, "latency 2 for the system user must be accepted");
     Require(sceAudioOut2Set3DLatency(systemUser, 2) == 0, "latency 2 must be accepted again");
     Require(sceAudioOut2Set3DLatency(systemUser, 1) == 0, "latency 1 for the system user must be accepted");
-    Require(ThrowsRuntimeError([] { sceAudioOut2Set3DLatency(systemUser, 0); }), "latency 0 must throw");
-    Require(ThrowsRuntimeError([] { sceAudioOut2Set3DLatency(systemUser, 3); }), "latency 3 must throw");
-    Require(ThrowsRuntimeError([] { sceAudioOut2Set3DLatency(user, 2); }), "a user other than the system user must throw");
+    Require(sceAudioOut2Set3DLatency(systemUser, 0) == invalidArgument, "latency 0 must be refused");
+    Require(sceAudioOut2Set3DLatency(systemUser, 3) == invalidArgument, "latency 3 must be refused");
+    Require(sceAudioOut2Set3DLatency(user, 2) == invalidArgument, "a user other than the system user must be refused");
 }
 
 void TestMasteringInit() {
@@ -57,7 +59,7 @@ void TestMasteringTerm() {
 void TestMasteringSetParam() {
     const std::uint32_t params[4] = {1u, 0u, 0u, 0u};
     Require(sceAudioOut2MasteringSetParam(params, 0, 0) == 0, "mastering parameters must be accepted");
-    Require(ThrowsRuntimeError([] { sceAudioOut2MasteringSetParam(nullptr, 0, 0); }), "null mastering parameters must throw");
+    Require(sceAudioOut2MasteringSetParam(nullptr, 0, 0) == invalidArgument, "null mastering parameters must be refused");
 }
 
 }
@@ -68,5 +70,6 @@ int main() {
     TestMasteringInit();
     TestMasteringTerm();
     TestMasteringSetParam();
+    Require(sceAudioOut2EnableChat() == 0, "chat audio must be allowed");
     return 0;
 }

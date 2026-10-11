@@ -606,20 +606,75 @@ struct Ngs2PanWork {
 };
 static_assert(sizeof(Ngs2PanWork) == 40);
 
-struct Ngs2GeomListenerParam {
-    std::uint32_t reserved[32];
+struct Ngs2GeomVector {
+    float x;
+    float y;
+    float z;
 };
+
+struct Ngs2GeomCone {
+    float inner_level;
+    float inner_angle;
+    float outer_level;
+    float outer_angle;
+};
+
+struct Ngs2GeomRolloff {
+    std::uint32_t model;
+    float max_distance;
+    float rolloff_factor;
+    float reference_distance;
+};
+
+struct Ngs2GeomListenerParam {
+    Ngs2GeomVector position;
+    Ngs2GeomVector orient_front;
+    Ngs2GeomVector orient_up;
+    Ngs2GeomVector velocity;
+    float sound_speed;
+    std::uint32_t reserved[2];
+};
+static_assert(sizeof(Ngs2GeomListenerParam) == 60);
 
 struct Ngs2GeomListenerWork {
-    std::uint32_t reserved[64];
+    float matrix[4][4];
+    Ngs2GeomVector velocity;
+    float sound_speed;
+    std::uint32_t coordinate;
+    std::uint32_t reserved[3];
 };
+static_assert(sizeof(Ngs2GeomListenerWork) == 96);
 
 struct Ngs2GeomSourceParam {
-    std::uint32_t reserved[32];
+    Ngs2GeomVector position;
+    Ngs2GeomVector velocity;
+    Ngs2GeomVector direction;
+    Ngs2GeomCone cone;
+    Ngs2GeomRolloff rolloff;
+    float doppler_factor;
+    float fbw_level;
+    float lfe_level;
+    float max_level;
+    float min_level;
+    float radius;
+    std::uint32_t num_speakers;
+    std::uint32_t matrix_format;
+    std::uint32_t reserved[2];
+};
+static_assert(sizeof(Ngs2GeomSourceParam) == 108);
+
+struct Ngs2GeomA3dAttribute {
+    Ngs2GeomVector position;
+    float volume;
+    std::uint32_t reserved[4];
 };
 
 struct Ngs2GeomAttribute {
-    std::uint32_t reserved[32];
+    float pitch_ratio;
+    float levels[8 * 8];
+    Ngs2GeomA3dAttribute a3d_attrib;
+    std::uint32_t reserved[4];
 };
+static_assert(sizeof(Ngs2GeomAttribute) == 308);
 
 #endif

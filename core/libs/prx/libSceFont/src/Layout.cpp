@@ -119,19 +119,26 @@ void FillImageMetrics(FontRenderOutput* result, const FontGlyphMetrics* metrics,
 }
 
 int RenderGlyphIndexToSurface(FontObj& obj, std::uint32_t glyphIndex, FontRenderSurface* surface, float x, float y, FontGlyphMetrics* metrics, FontRenderOutput* result) {
+    const auto face = static_cast<FT_Face>(obj.ft_face);
+    FT_Vector shift{};
+    if (face && face->size && (obj.shift_units_x != 0 || obj.shift_units_y != 0)) {
+        shift.x = static_cast<FT_Pos>(RoundMulFixed(obj.shift_units_x, static_cast<std::int64_t>(face->size->metrics.x_scale)));
+        shift.y = static_cast<FT_Pos>(RoundMulFixed(obj.shift_units_y, static_cast<std::int64_t>(face->size->metrics.y_scale)));
+    }
+    return RenderFaceGlyphToSurface(face, glyphIndex, shift, surface, x, y, metrics, result);
+}
+
+}
+
+int Font::RenderFaceGlyphToSurface(FT_Face face, FT_UInt glyphIndex, FT_Vector shift, FontRenderSurface* surface, float x, float y, FontGlyphMetrics* metrics, FontRenderOutput* result) {
     ClearRenderOutputs(metrics, result);
     if (!surface->buffer || surface->width <= 0 || surface->height <= 0 || surface->widthByte <= 0 || surface->pixelSizeByte <= 0) return SCE_FONT_ERROR_NO_SUPPORT_SURFACE;
     const int bytesPerPixel = surface->pixelSizeByte;
     if (bytesPerPixel != 1 && bytesPerPixel != 4) return SCE_FONT_ERROR_NO_SUPPORT_SURFACE;
-    const auto face = static_cast<FT_Face>(obj.ft_face);
     if (!face || !face->size) return SCE_FONT_ERROR_NO_SUPPORT_GLYPH;
     FT_Vector delta{};
-    delta.x = static_cast<FT_Pos>(static_cast<std::int32_t>((x - std::floor(x)) * 64.0f));
-    delta.y = static_cast<FT_Pos>(-static_cast<std::int32_t>((y - std::floor(y)) * 64.0f));
-    if (obj.shift_units_x != 0 || obj.shift_units_y != 0) {
-        delta.x += static_cast<FT_Pos>(RoundMulFixed(obj.shift_units_x, static_cast<std::int64_t>(face->size->metrics.x_scale)));
-        delta.y += static_cast<FT_Pos>(RoundMulFixed(obj.shift_units_y, static_cast<std::int64_t>(face->size->metrics.y_scale)));
-    }
+    delta.x = static_cast<FT_Pos>(static_cast<std::int32_t>((x - std::floor(x)) * 64.0f)) + shift.x;
+    delta.y = static_cast<FT_Pos>(-static_cast<std::int32_t>((y - std::floor(y)) * 64.0f)) + shift.y;
     FT_Set_Transform(face, nullptr, &delta);
     const FT_Error error = FT_Load_Glyph(face, glyphIndex, FT_LOAD_NO_HINTING | FT_LOAD_NO_BITMAP | FT_LOAD_VERTICAL_LAYOUT | FT_LOAD_RENDER);
     FT_Set_Transform(face, nullptr, nullptr);
@@ -199,8 +206,6 @@ int RenderGlyphIndexToSurface(FontObj& obj, std::uint32_t glyphIndex, FontRender
     result->SurfaceImage.address = static_cast<std::uint8_t*>(surface->buffer) + static_cast<std::size_t>(result->UpdateRect.y) * static_cast<std::size_t>(surface->widthByte) + static_cast<std::size_t>(result->UpdateRect.x) * static_cast<std::size_t>(bytesPerPixel);
     FillImageMetrics(result, metrics, x, y);
     return SCE_FONT_OK;
-}
-
 }
 
 int Font::ComputeHorizontalLayout(FontHandle handle, const StyleStateBlock* style, std::uint8_t* outWords) {
