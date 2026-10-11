@@ -44,11 +44,11 @@ The [compatibility list](COMPATIBILITY.md) has every game tested on macOS, its s
 
 ### Status
 
-[![libraries](https://utkuhalis.github.io/AnyPS5-ARM/badge-libraries.svg)](https://utkuhalis.github.io/AnyPS5-ARM/) [![shaders](https://utkuhalis.github.io/AnyPS5-ARM/badge-shaders.svg)](https://utkuhalis.github.io/AnyPS5-ARM/)
+[![libraries](../progress/badge-libraries.svg)](../progress/badge-libraries.svg) [![shaders](../progress/badge-shaders.svg)](../progress/badge-shaders.svg)
 
-[![progress map](https://utkuhalis.github.io/AnyPS5-ARM/progress.svg)](https://utkuhalis.github.io/AnyPS5-ARM/)
+[![progress map](../progress/progress.svg)](../progress/progress.svg)
 
-<sub>* System libraries: the share of the functions the project knows so far (declared in [core/libs/prx](../../core/libs/prx)) that are implemented, not of every PS5 system function. GPU shader instructions: the share of the RDNA instructions the shader recompiler translates. Both are regenerated on every push to `main`.</sub>
+<sub>* System libraries: the share of the functions the project knows so far (declared in [core/libs/prx](../../core/libs/prx)) that are implemented, not of every PS5 system function. GPU shader instructions: the share of the RDNA instructions the shader recompiler translates. Regenerate them with `python3 tools/progress.py <directory>` and copy the three SVG files to `docs/progress/`.</sub>
 
 | Check | Result |
 |---|---|
@@ -238,11 +238,11 @@ Hâlâ `APS5_NO_WRITE_WATCH=1` ve `ANYPS5_NO_SHADER_CACHE=1` gerekiyor ve daha i
 
 ### Durum
 
-[![libraries](https://utkuhalis.github.io/AnyPS5-ARM/badge-libraries.svg)](https://utkuhalis.github.io/AnyPS5-ARM/) [![shaders](https://utkuhalis.github.io/AnyPS5-ARM/badge-shaders.svg)](https://utkuhalis.github.io/AnyPS5-ARM/)
+[![libraries](../progress/badge-libraries.svg)](../progress/badge-libraries.svg) [![shaders](../progress/badge-shaders.svg)](../progress/badge-shaders.svg)
 
-[![ilerleme haritası](https://utkuhalis.github.io/AnyPS5-ARM/progress.svg)](https://utkuhalis.github.io/AnyPS5-ARM/)
+[![ilerleme haritası](../progress/progress.svg)](../progress/progress.svg)
 
-<sub>* Sistem kütüphaneleri: projenin şimdiye kadar bildiği fonksiyonların ([core/libs/prx](../../core/libs/prx) içinde tanımlananlar) ne kadarının yazıldığı; PS5'in bütün sistem fonksiyonlarının değil. GPU shader komutları: shader derleyicisinin çevirebildiği RDNA komutlarının oranı. İkisi de `main`'e her push'ta yeniden üretilir.</sub>
+<sub>* Sistem kütüphaneleri: projenin şimdiye kadar bildiği fonksiyonların ([core/libs/prx](../../core/libs/prx) içinde tanımlananlar) ne kadarının yazıldığı; PS5'in bütün sistem fonksiyonlarının değil. GPU shader komutları: shader derleyicisinin çevirebildiği RDNA komutlarının oranı. Yeniden üretmek için `python3 tools/progress.py <klasör>` çalıştırıp üç SVG dosyasını `docs/progress/` klasörüne kopyala.</sub>
 
 | Kontrol | Sonuç |
 |---|---|

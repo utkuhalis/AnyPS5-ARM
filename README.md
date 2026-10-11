@@ -19,9 +19,9 @@
 
 ## Status
 
-[![libraries](https://utkuhalis.github.io/AnyPS5-ARM/badge-libraries.svg)](https://utkuhalis.github.io/AnyPS5-ARM/) [![shaders](https://utkuhalis.github.io/AnyPS5-ARM/badge-shaders.svg)](https://utkuhalis.github.io/AnyPS5-ARM/)
+[![libraries](docs/progress/badge-libraries.svg)](docs/progress/badge-libraries.svg) [![shaders](docs/progress/badge-shaders.svg)](docs/progress/badge-shaders.svg)
 
-[![progress map](https://utkuhalis.github.io/AnyPS5-ARM/progress.svg)](https://utkuhalis.github.io/AnyPS5-ARM/)
+[![progress map](docs/progress/progress.svg)](docs/progress/progress.svg)
 
 <sub>* System libraries: the share of the functions the project knows so far (declared in [core/libs/prx](core/libs/prx)) that are implemented, not of every PS5 system function.</sub>
 
