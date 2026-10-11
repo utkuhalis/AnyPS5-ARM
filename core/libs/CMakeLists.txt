@@ -215,6 +215,15 @@ if(BUILD_TESTING)
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceShare.native>")
     endif()
 
+    add_test_executable(guest_signin_ap_dialogs_tests tests/GuestSigninApDialogs.cpp)
+    target_include_directories(guest_signin_ap_dialogs_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(guest_signin_ap_dialogs_tests PRIVATE libSceSigninDialog libSceNetCtlApDialog)
+    add_test(NAME guest_signin_ap_dialogs COMMAND guest_signin_ap_dialogs_tests)
+    if(WIN32)
+        set_tests_properties(guest_signin_ap_dialogs PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceSigninDialog>")
+    endif()
+
     if(UNIX AND (CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$" OR CMAKE_OSX_ARCHITECTURES STREQUAL "x86_64"))
         add_subdirectory(tests/register_context)
     endif()
