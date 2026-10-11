@@ -51,7 +51,7 @@ Measured on a MacBook Pro M3 Pro running macOS 26.6.2 with Vulkan SDK 1.4.363.0.
 
 #### Stray: where it stands
 
-Stray is the first Unreal Engine 4 title to render on macOS here. It reaches the brightness setup screen, at about 1 fps for now. Getting there took fixes on the [`gta3-image-heaps`](https://github.com/utkuhalis/AnyPS5-ARM/tree/gta3-image-heaps) branch: larger shader image and sampler heaps, a SPIR-V loop shape that MoltenVK's shader translator turned into an infinite loop and a GPU hang, depth surfaces read as storage images, and draws the Metal backend cannot run (geometry shaders, the depth bounds test) skipped instead of stopping the game. It still runs with `APS5_NO_WRITE_WATCH=1` and `ANYPS5_NO_SHADER_CACHE=1`, and stops later on a depth texture it cannot sample yet.
+Stray is the first Unreal Engine 4 title to render on macOS here. It reaches the brightness setup screen, at about 1 fps for now. Getting there took these fixes: larger shader image and sampler heaps, a SPIR-V loop shape that MoltenVK's shader translator turned into an infinite loop and a GPU hang, depth surfaces read as storage images, and draws the Metal backend cannot run (geometry shaders, the depth bounds test) skipped instead of stopping the game. It still runs with `APS5_NO_WRITE_WATCH=1` and `ANYPS5_NO_SHADER_CACHE=1`, and stops later on a depth texture it cannot sample yet.
 
 | Studio logo | Brightness setup |
 |---|---|
@@ -215,7 +215,7 @@ AnyPS5-ARM, [AnyPS5](https://github.com/boykopovar/AnyPS5)'in macOS sürümüdü
 
 #### Stray: ne durumda
 
-Stray, burada macOS'ta görüntü veren ilk Unreal Engine 4 oyunu. Parlaklık ayar ekranına kadar geliyor, şimdilik yaklaşık 1 FPS ile. Bunun için [`gta3-image-heaps`](https://github.com/utkuhalis/AnyPS5-ARM/tree/gta3-image-heaps) dalında düzeltmeler yapıldı: daha büyük shader image ve sampler heap'leri, MoltenVK'nın shader çeviricisinin sonsuz döngüye ve GPU kilitlenmesine çevirdiği bir SPIR-V döngü biçimi, storage image olarak okunan depth yüzeyleri, ve Metal'in çalıştıramadığı çizimlerin (geometry shader'lar, depth bounds testi) oyunu durdurmak yerine atlanması. Hâlâ `APS5_NO_WRITE_WATCH=1` ve `ANYPS5_NO_SHADER_CACHE=1` ile çalışıyor ve daha ileride henüz örnekleyemediği bir depth texture'da duruyor.
+Stray, burada macOS'ta görüntü veren ilk Unreal Engine 4 oyunu. Parlaklık ayar ekranına kadar geliyor, şimdilik yaklaşık 1 FPS ile. Bunun için şu düzeltmeler yapıldı: daha büyük shader image ve sampler heap'leri, MoltenVK'nın shader çeviricisinin sonsuz döngüye ve GPU kilitlenmesine çevirdiği bir SPIR-V döngü biçimi, storage image olarak okunan depth yüzeyleri, ve Metal'in çalıştıramadığı çizimlerin (geometry shader'lar, depth bounds testi) oyunu durdurmak yerine atlanması. Hâlâ `APS5_NO_WRITE_WATCH=1` ve `ANYPS5_NO_SHADER_CACHE=1` ile çalışıyor ve daha ileride henüz örnekleyemediği bir depth texture'da duruyor.
 
 | Stüdyo logosu | Parlaklık ayarı |
 |---|---|
