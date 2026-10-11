@@ -21,6 +21,7 @@ constexpr int AUDIO_IN_ERROR_PORT_FULL = static_cast<int>(0x80260107);
 constexpr int AUDIO_IN_ERROR_BUSY = static_cast<int>(0x8026010A);
 constexpr int AUDIO_IN_SILENT_STATE_DEVICE_NONE = 1;
 constexpr std::uint32_t MAX_QUEUED_BLOCKS = 4;
+constexpr std::uint32_t MAX_ASYNC_SAMPLES = 128 * 3;
 
 using Clock = std::chrono::steady_clock;
 
@@ -73,6 +74,20 @@ Port* find(int handle) {
     if (handle <= 0 || static_cast<std::size_t>(handle) > g_ports.size()) return nullptr;
     Port& port = g_ports[static_cast<std::size_t>(handle - 1)];
     return port.used ? &port : nullptr;
+}
+
+int openPort(std::uint32_t len, std::uint32_t freq, std::uint32_t param) {
+    Format format{};
+    if (!formatOf(param, format)) return AUDIO_IN_ERROR_INVALID_PARAM;
+    std::lock_guard lock(g_mutex);
+    for (std::size_t i = 0; i < g_ports.size(); ++i) {
+        if (g_ports[i].used) continue;
+        const auto frameBytes = static_cast<std::uint32_t>(SDL_AUDIO_BITSIZE(format.format) / 8 * format.channels);
+        const auto grain = std::chrono::duration_cast<Clock::duration>(std::chrono::microseconds(1000000ull * len / freq));
+        g_ports[i] = {true, false, len, frameBytes, openDevice(freq, len, format), grain, {}};
+        return static_cast<int>(i + 1);
+    }
+    return AUDIO_IN_ERROR_PORT_FULL;
 }
 
 std::size_t capture(SDL_AudioDeviceID device, std::uint8_t* dest, std::size_t bytes, Clock::time_point deadline) {
@@ -144,17 +159,7 @@ int APS5_VABI sceAudioInOpen(int user_id, uint32_t type, uint32_t index, uint32_
         NotImplemented_nid_no_patch(__func__);
         return 0;
     }
-    Format format{};
-    if (!formatOf(param, format)) return AUDIO_IN_ERROR_INVALID_PARAM;
-    std::lock_guard lock(g_mutex);
-    for (std::size_t i = 0; i < g_ports.size(); ++i) {
-        if (g_ports[i].used) continue;
-        const auto frameBytes = static_cast<std::uint32_t>(SDL_AUDIO_BITSIZE(format.format) / 8 * format.channels);
-        const auto grain = std::chrono::duration_cast<Clock::duration>(std::chrono::microseconds(1000000ull * len / freq));
-        g_ports[i] = {true, false, len, frameBytes, openDevice(freq, len, format), grain, {}};
-        return static_cast<int>(i + 1);
-    }
-    return AUDIO_IN_ERROR_PORT_FULL;
+    return openPort(len, freq, param);
 }
 
 int32_t APS5_VABI sceAudioInClose(int32_t handle) {
@@ -167,26 +172,24 @@ int32_t APS5_VABI sceAudioInClose(int32_t handle) {
     return 0;
 }
 
+// The high-quality path captures at 48 kHz in 128-sample grains.
 int32_t APS5_VABI sceAudioInHqOpen(int32_t user_id, uint32_t type, uint32_t index, uint32_t len, uint32_t freq, uint32_t param) {
- (void)user_id;
- (void)type;
- (void)index;
- (void)len;
- (void)freq;
- (void)param;
- NotImplemented_nid_no_patch(__func__);
- return 0;
+    (void)user_id;
+    if (type != 0 && type != 1) return AUDIO_IN_ERROR_INVALID_TYPE;
+    if (index != 0) return AUDIO_IN_ERROR_INVALID_PARAM;
+    if (len != 128) return AUDIO_IN_ERROR_INVALID_SIZE;
+    if (freq != 48000) return AUDIO_IN_ERROR_INVALID_FREQ;
+    return openPort(len, freq, param);
 }
 
+// The low-latency path takes any grain up to three 128-sample blocks.
 int32_t APS5_VABI sceAudioInAsyncOpen(int32_t user_id, uint32_t type, uint32_t index, uint32_t len, uint32_t freq, uint32_t param) {
- (void)user_id;
- (void)type;
- (void)index;
- (void)len;
- (void)freq;
- (void)param;
- NotImplemented_nid_no_patch(__func__);
- return 0;
+    (void)user_id;
+    if (type != 0 && type != 1) return AUDIO_IN_ERROR_INVALID_TYPE;
+    if (index != 0) return AUDIO_IN_ERROR_INVALID_PARAM;
+    if (len == 0 || len > MAX_ASYNC_SAMPLES) return AUDIO_IN_ERROR_INVALID_SIZE;
+    if (freq != 48000 && freq != 16000) return AUDIO_IN_ERROR_INVALID_FREQ;
+    return openPort(len, freq, param);
 }
 
 APS5_EXPORT("X+4jdIS75P0", sceAudioInUnknown_X4jdIS75P0);

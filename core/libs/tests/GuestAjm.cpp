@@ -34,6 +34,7 @@ int APS5_VABI sceAjmBatchJobSetResampleParameters(AjmBatchInfo*, std::uint32_t, 
 int APS5_VABI sceAjmBatchJobGetResampleInfo(AjmBatchInfo*, std::uint32_t, void*);
 int APS5_VABI sceAjmBatchJobSetResampleParametersEx(AjmBatchInfo*, std::uint32_t, float, float, std::uint32_t, void*);
 int APS5_VABI sceAjmBatchJobDecodeSplit(AjmBatchInfo*, std::uint32_t, const AjmBuffer*, std::size_t, const AjmBuffer*, std::size_t, void*);
+const char* APS5_VABI sceAjmStrError(int);
 }
 
 static void Require(bool value) { if (!value) std::abort(); }
@@ -1121,4 +1122,8 @@ int main() {
     TestAt9GaplessSegments(context);
     TestAt9RunDecodesWholeInput(context);
     Require(sceAjmFinalize(context) == 0);
+    Require(std::strcmp(sceAjmStrError(0), "SCE_OK") == 0);
+    Require(std::strcmp(sceAjmStrError(invalidParameter), "SCE_AJM_ERROR_INVALID_PARAMETER") == 0);
+    Require(std::strcmp(sceAjmStrError(static_cast<int>(0x80930002)), "SCE_AJM_ERROR_INVALID_CONTEXT") == 0);
+    Require(sceAjmStrError(-1) != nullptr && sceAjmStrError(1) != nullptr);
 }

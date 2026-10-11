@@ -2,6 +2,7 @@
 #include "SceTypes.hpp"
 #include "prx/libc/include/General.hpp"
 
+static constexpr int SCE_AUDIO_OUT2_ERROR_INVALID_ARGUMENT = static_cast<int>(0x80260502);
 static constexpr int USER_ID_SYSTEM = 0xFF;
 static constexpr std::uint32_t MIN_SUPPORTED_3D_LATENCY = 1;
 static constexpr std::uint32_t MAX_SUPPORTED_3D_LATENCY = 2;
@@ -12,8 +13,9 @@ int APS5_VABI sceAudioOut2Initialize(void) {
     return 0;
 }
 
+// The latency only selects how far ahead 3D audio is rendered, which the stereo SDL output does not do.
 int APS5_VABI sceAudioOut2Set3DLatency(int userId, std::uint32_t latency) {
-    if (userId != USER_ID_SYSTEM || latency < MIN_SUPPORTED_3D_LATENCY || latency > MAX_SUPPORTED_3D_LATENCY) NotImplemented_nid_no_patch(__func__);
+    if (userId != USER_ID_SYSTEM || latency < MIN_SUPPORTED_3D_LATENCY || latency > MAX_SUPPORTED_3D_LATENCY) return SCE_AUDIO_OUT2_ERROR_INVALID_ARGUMENT;
     return 0;
 }
 
