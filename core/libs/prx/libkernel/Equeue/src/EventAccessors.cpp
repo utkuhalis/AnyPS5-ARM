@@ -18,10 +18,14 @@ intptr_t APS5_VABI sceKernelGetEventData(const KernelEvent* ev) {
     return requireEvent(ev, __func__).data;
 }
 
+// As with kevent, an event flagged EV_ERROR carries its errno in data; the error is returned as
+// the matching SCE kernel error code.
 int APS5_VABI sceKernelGetEventError(const KernelEvent* ev) {
- (void)ev;
- NotImplemented_nid_no_patch(__func__);
- return 0;
+    constexpr std::uint16_t EventError = 0x4000;
+    constexpr std::uint32_t KernelErrorBase = 0x80020000u;
+    const auto& event = requireEvent(ev, __func__);
+    if ((event.flags & EventError) == 0 || event.data <= 0 || event.data > 0xffff) return 0;
+    return static_cast<int>(KernelErrorBase | static_cast<std::uint32_t>(event.data));
 }
 
 intptr_t APS5_VABI sceKernelGetEventFflags(const KernelEvent* ev) {

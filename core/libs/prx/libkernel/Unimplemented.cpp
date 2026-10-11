@@ -2,6 +2,7 @@
 #include <cstddef>
 #include "SceTypes.hpp"
 #include "prx/libc/include/General.hpp"
+#include <stdexcept>
 
 extern "C" {
 
@@ -10,9 +11,24 @@ int APS5_VABI sceCoredumpWriteUserData() {
  return 0;
 }
 
-int APS5_VABI __tls_get_addr_nid_postfix(void) {
-    NotImplemented_nid_no_patch("vNe1w4diLCs");
-    return 0;
+#ifdef __APPLE__
+void* Aps5GuestTlsGetAddr_nid_no_patch(const void* index);
+#elif !defined(_WIN32)
+void* __tls_get_addr(void* index);
+#endif
+
+// The relinker binds guest imports of __tls_get_addr to the platform resolver directly; this
+// export reaches the same resolver for a caller that looks it up by name. Guest modules on macOS
+// carry their TLS descriptor as the module id, and on Linux they are host modules of ld.so.
+void* APS5_VABI __tls_get_addr_nid_postfix(void* index) {
+#ifdef __APPLE__
+    return Aps5GuestTlsGetAddr_nid_no_patch(index);
+#elif !defined(_WIN32)
+    return __tls_get_addr(index);
+#else
+    (void)index;
+    throw std::runtime_error("__tls_get_addr: guest TLS is resolved by the relinker's entry stubs on Windows");
+#endif
 }
 
 APS5_EXPORT("AC1FtjqMCL0", sceKernelUnknown03);

@@ -12,6 +12,16 @@
 #include <stdexcept>
 #ifdef _WIN32
 #include <windows.h>
+#else
+#include <atomic>
+#include <cerrno>
+#include <csignal>
+#include <pthread.h>
+#ifdef __APPLE__
+#include <sys/ucontext.h>
+#else
+#include <ucontext.h>
+#endif
 #endif
 
 extern "C" Pthread APS5_VABI scePthreadSelf();
@@ -270,6 +280,84 @@ bool RaiseOn(Pthread thread, GuestExceptionHandler handler, int signum) {
     ResumeThread(native);
     return true;
 }
+#else
+// A raise is a host signal sent to the target thread; its handler runs the guest handler on that
+// thread with the interrupted registers, as the console's kernel does, and resumes with whatever
+// registers the guest handler leaves in the context.
+constexpr int HostRaiseSignal = SIGUSR2;
+std::atomic<GuestExceptionHandler> raiseHandler{nullptr};
+
+#ifdef __APPLE__
+#define APS5_GREG(context, name) (context)->uc_mcontext->__ss.__##name
+#else
+#define APS5_GREG(context, name) (context)->uc_mcontext.gregs[REG_##name]
+#endif
+
+void* HostFpState(ucontext_t* context) {
+#ifdef __APPLE__
+    return &context->uc_mcontext->__fs.__fpu_fcw;
+#else
+    return context->uc_mcontext.fpregs;
+#endif
+}
+
+void Deliver(GuestExceptionHandler handler, int signum, ucontext_t* context) {
+#ifdef __APPLE__
+#define APS5_SWAP_GREGS(apply) apply(rdi, rdi) apply(rsi, rsi) apply(rdx, rdx) apply(rcx, rcx) apply(r8, r8) apply(r9, r9) \
+    apply(rax, rax) apply(rbx, rbx) apply(rbp, rbp) apply(r10, r10) apply(r11, r11) apply(r12, r12) apply(r13, r13) \
+    apply(r14, r14) apply(r15, r15) apply(rip, rip) apply(rsp, rsp) apply(rflags, rflags)
+#else
+#define APS5_SWAP_GREGS(apply) apply(rdi, RDI) apply(rsi, RSI) apply(rdx, RDX) apply(rcx, RCX) apply(r8, R8) apply(r9, R9) \
+    apply(rax, RAX) apply(rbx, RBX) apply(rbp, RBP) apply(r10, R10) apply(r11, R11) apply(r12, R12) apply(r13, R13) \
+    apply(r14, R14) apply(r15, R15) apply(rip, RIP) apply(rsp, RSP) apply(rflags, EFL)
+#endif
+    GuestUcontext ucontext{};
+    auto& m = ucontext.mcontext;
+#define APS5_LOAD(guest, host) m.guest = static_cast<std::uint64_t>(APS5_GREG(context, host));
+#define APS5_STORE(guest, host) APS5_GREG(context, host) = m.guest;
+    APS5_SWAP_GREGS(APS5_LOAD)
+    m.len = sizeof(GuestMcontext);
+    constexpr std::size_t FxsaveBytes = 512;
+    static_assert(FxsaveBytes <= sizeof(m.fpstate));
+    void* fp = HostFpState(context);
+    if (fp != nullptr) std::memcpy(m.fpstate, fp, FxsaveBytes);
+    handler(signum, &ucontext);
+    APS5_SWAP_GREGS(APS5_STORE)
+    if (fp != nullptr) std::memcpy(fp, m.fpstate, FxsaveBytes);
+#undef APS5_LOAD
+#undef APS5_STORE
+#undef APS5_SWAP_GREGS
+}
+
+#undef APS5_GREG
+
+void HostRaiseEntry(int, siginfo_t*, void* raw) {
+    const int savedErrno = errno;
+    const Pthread self = scePthreadSelf();
+    const auto handler = raiseHandler.load(std::memory_order_acquire);
+    for (int pending = self->pendingException.exchange(0, std::memory_order_acq_rel); pending > 0 && handler != nullptr; --pending)
+        Deliver(handler, 30, static_cast<ucontext_t*>(raw));
+    errno = savedErrno;
+}
+
+bool RaiseOn(Pthread thread, GuestExceptionHandler handler, int signum) {
+    (void)signum;
+    static const bool installed = [] {
+        struct sigaction action{};
+        action.sa_sigaction = HostRaiseEntry;
+        action.sa_flags = SA_SIGINFO | SA_RESTART;
+        sigemptyset(&action.sa_mask);
+        return sigaction(HostRaiseSignal, &action, nullptr) == 0;
+    }();
+    if (!installed) throw std::runtime_error("sceKernelRaiseException: cannot install the host signal handler");
+    raiseHandler.store(handler, std::memory_order_release);
+    thread->pendingException.fetch_add(1, std::memory_order_acq_rel);
+    const int result = pthread_kill(thread->hostThread, HostRaiseSignal);
+    if (result == 0) return true;
+    thread->pendingException.fetch_sub(1, std::memory_order_acq_rel);
+    if (result == ESRCH) return false;
+    throw std::runtime_error("sceKernelRaiseException: cannot signal the target thread");
+}
 #endif
 
 }
@@ -364,12 +452,7 @@ int APS5_VABI sceKernelRaiseException(Pthread thread, int signum) {
  if (thread == nullptr || thread->_finished.load(std::memory_order_acquire)) return SCE_KERNEL_ERROR_ESRCH;
  const auto handler = Handler(signum);
  if (handler == nullptr) throw std::runtime_error("sceKernelRaiseException: no handler installed for the signal");
-#ifdef _WIN32
  return RaiseOn(thread, handler, signum) ? 0 : SCE_KERNEL_ERROR_ESRCH;
-#else
- NotImplemented_nid_no_patch(__func__);
- return 0;
-#endif
 }
 
 void APS5_VABI sceKernelDebugRaiseException(int c1, int c2) {

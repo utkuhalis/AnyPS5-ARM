@@ -2,6 +2,7 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
 #include <thread>
@@ -23,6 +24,10 @@ int APS5_VABI sceKernelAddReadEvent(KernelEqueue eq, int fd, std::size_t size, v
 int APS5_VABI sceKernelDeleteReadEvent(KernelEqueue eq, int fd);
 int APS5_VABI sceKernelAddWriteEvent(KernelEqueue eq, int fd, std::size_t size, void* udata);
 int APS5_VABI sceKernelDeleteWriteEvent(KernelEqueue eq, int fd);
+int APS5_VABI sceKernelOpen(const char*, int, std::uint16_t);
+int APS5_VABI sceKernelClose(int);
+std::int64_t APS5_VABI sceKernelWrite(int, const void*, std::size_t);
+std::int64_t APS5_VABI sceKernelLseek(int, std::int64_t, int);
 }
 
 static constexpr int SCE_OK = 0;
@@ -34,15 +39,6 @@ static constexpr int EVFILT_WRITE = -2;
 static constexpr std::uint16_t EV_EOF = 0x8000;
 
 static void Require(bool value) { if (!value) std::abort(); }
-
-static bool Rejects(int (APS5_VABI *add)(KernelEqueue, int, std::size_t, void*), KernelEqueue eq, int fd, std::size_t size) {
-    try {
-        add(eq, fd, size, nullptr);
-    } catch (const std::exception&) {
-        return true;
-    }
-    return false;
-}
 
 int main() {
     const int listener = socket_nid_postfix(2, 1, 6);
@@ -132,8 +128,48 @@ int main() {
     Require(sceKernelDeleteEqueue(blocking) == SCE_OK);
 
     Require(sceKernelAddReadEvent(eq, client, 1, nullptr) == SCE_KERNEL_ERROR_EBADF);
-    Require(Rejects(sceKernelAddReadEvent, eq, 0, 1));
-    Require(Rejects(sceKernelAddWriteEvent, eq, accepted, 64));
+    Require(sceKernelAddReadEvent(eq, 12345, 1, nullptr) == SCE_KERNEL_ERROR_EBADF);
+    Require(sceKernelDeleteReadEvent(eq, accepted) == SCE_OK);
+
+    KernelEqueue watermark = 0;
+    Require(sceKernelCreateEqueue(&watermark, "watermark") == SCE_OK);
+    const int lowWriter = socket_nid_postfix(2, 1, 0);
+    Require(lowWriter >= 0 && connect_nid_postfix(lowWriter, address.data(), address.size()) == 0);
+    const int lowReader = accept_nid_postfix(listener, nullptr, nullptr);
+    Require(lowReader >= 0);
+    Require(sceKernelAddReadEvent(watermark, lowReader, 8, nullptr) == SCE_OK);
+    Require(send_nid_postfix(lowWriter, "abcd", 4, 0) == 4);
+    Require(sceKernelWaitEqueue(watermark, events.data(), events.size(), &count, &shortTimeout) == SCE_KERNEL_ERROR_ETIMEDOUT);
+    std::thread rest([&] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        Require(send_nid_postfix(lowWriter, "efgh", 4, 0) == 4);
+    });
+    Require(sceKernelWaitEqueue(watermark, events.data(), events.size(), &count, &timeout) == SCE_OK);
+    rest.join();
+    Require(count == 1 && events[0].ident == static_cast<std::uintptr_t>(lowReader) && events[0].data == 8);
+    Require(close_nid_postfix(lowWriter) == 0);
+    Require(close_nid_postfix(lowReader) == 0);
+    Require(sceKernelDeleteEqueue(watermark) == SCE_OK);
+
+    KernelEqueue files = 0;
+    Require(sceKernelCreateEqueue(&files, "files") == SCE_OK);
+    const int file = sceKernelOpen("socket_events_probe.bin", 0x202, 0644);
+    Require(file >= 0);
+    Require(sceKernelWrite(file, "0123456789", 10) == 10);
+    Require(sceKernelLseek(file, 3, 0) == 3);
+    Require(sceKernelAddReadEvent(files, file, 1, &marker) == SCE_OK);
+    Require(sceKernelWaitEqueue(files, events.data(), events.size(), &count, &timeout) == SCE_OK);
+    Require(count == 1 && events[0].filter == EVFILT_READ && events[0].data == 7 && events[0].udata == &marker);
+    Require(sceKernelLseek(file, 0, 2) == 10);
+    Require(sceKernelWaitEqueue(files, events.data(), events.size(), &count, &shortTimeout) == SCE_KERNEL_ERROR_ETIMEDOUT);
+    Require(sceKernelAddWriteEvent(files, file, 0, nullptr) == SCE_OK);
+    Require(sceKernelWaitEqueue(files, events.data(), events.size(), &count, &timeout) == SCE_OK);
+    Require(count == 1 && events[0].filter == EVFILT_WRITE && events[0].data == 0);
+    Require(sceKernelDeleteReadEvent(files, file) == SCE_OK);
+    Require(sceKernelDeleteWriteEvent(files, file) == SCE_OK);
+    Require(sceKernelClose(file) == 0);
+    Require(sceKernelDeleteEqueue(files) == SCE_OK);
+    std::remove("socket_events_probe.bin");
 
     Require(close_nid_postfix(accepted) == 0);
     Require(close_nid_postfix(listener) == 0);

@@ -13,8 +13,11 @@ int APS5_VABI scePthreadSetaffinity(Pthread thread, KernelCpumask mask);
 int APS5_VABI scePthreadAttrInit(PthreadAttr* attr);
 int APS5_VABI scePthreadAttrDestroy(PthreadAttr* attr);
 int APS5_VABI scePthreadAttrGetaffinity(const PthreadAttr* attr, KernelCpumask* mask);
+int APS5_VABI scePthreadAttrSetaffinity(PthreadAttr* attr, KernelCpumask mask);
 int APS5_VABI cpuset_getaffinity_nid_postfix(int level, int which, std::int64_t id, std::size_t size, void* mask);
 int* APS5_VABI __error_nid_postfix();
+int APS5_VABI scePthreadGetthreadid(void);
+int APS5_VABI getpid_nid_postfix(void);
 }
 
 static constexpr int SCE_OK = 0;
@@ -38,6 +41,18 @@ static void* APS5_VABI ReportCpuset(void* arg) {
     result[5] = cpuset_getaffinity_nid_postfix(3, 1, -1, 4, set) == -1 && *__error_nid_postfix() == 34;
     result[6] = cpuset_getaffinity_nid_postfix(3, 1, -1, 33, set) == -1 && *__error_nid_postfix() == 34;
     result[7] = cpuset_getaffinity_nid_postfix(3, 1, -1, 8, nullptr) == -1 && *__error_nid_postfix() == 14;
+    set[0] = 0;
+    result[8] = cpuset_getaffinity_nid_postfix(3, 1, scePthreadGetthreadid(), 8, set) == 0 ? set[0] : 0;
+    set[0] = 0;
+    result[9] = cpuset_getaffinity_nid_postfix(3, 2, -1, 8, set) == 0 ? set[0] : 0;
+    set[0] = 0;
+    result[10] = cpuset_getaffinity_nid_postfix(1, 2, getpid_nid_postfix(), 8, set) == 0 ? set[0] : 0;
+    set[0] = 0;
+    result[11] = cpuset_getaffinity_nid_postfix(2, 1, -1, 8, set) == 0 ? set[0] : 0;
+    result[12] = cpuset_getaffinity_nid_postfix(3, 1, scePthreadGetthreadid() + 1, 8, set) == -1 && *__error_nid_postfix() == 3;
+    result[13] = cpuset_getaffinity_nid_postfix(3, 2, getpid_nid_postfix() + 1, 8, set) == -1 && *__error_nid_postfix() == 3;
+    result[14] = cpuset_getaffinity_nid_postfix(4, 1, -1, 8, set) == -1 && *__error_nid_postfix() == 22;
+    result[15] = cpuset_getaffinity_nid_postfix(3, 4, -1, 8, set) == -1 && *__error_nid_postfix() == 22;
     return nullptr;
 }
 
@@ -80,11 +95,15 @@ int main() {
     Require(scePthreadJoin(thread, nullptr) == SCE_OK);
     Require(fromThread == available);
 
-    std::uint64_t cpuset[8] = {};
+    std::uint64_t cpuset[16] = {};
+    Require(scePthreadAttrSetaffinity(&attr, available & (0 - available)) == SCE_OK);
     Require(scePthreadCreate(&thread, &attr, ReportCpuset, cpuset, nullptr) == SCE_OK);
     Require(scePthreadJoin(thread, nullptr) == SCE_OK);
-    Require(cpuset[0] == 0 && cpuset[1] == available && cpuset[2] == ~0ull);
-    Require(cpuset[3] == 0 && cpuset[4] == available);
+    const KernelCpumask lowest = available & (0 - available);
+    Require(cpuset[0] == 0 && cpuset[1] == lowest && cpuset[2] == ~0ull);
+    Require(cpuset[3] == 0 && cpuset[4] == lowest);
     Require(cpuset[5] == 1 && cpuset[6] == 1 && cpuset[7] == 1);
+    Require(cpuset[8] == lowest && cpuset[9] == available && cpuset[10] == available && cpuset[11] == available);
+    Require(cpuset[12] == 1 && cpuset[13] == 1 && cpuset[14] == 1 && cpuset[15] == 1);
     Require(scePthreadAttrDestroy(&attr) == SCE_OK);
 }
