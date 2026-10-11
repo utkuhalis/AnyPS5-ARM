@@ -12,6 +12,12 @@ int APS5_VABI sceSslFreeCaCerts(int, void*);
 int APS5_VABI sceSslGetCaList(int, void*);
 int APS5_VABI sceSslFreeCaList(int, void*);
 int APS5_VABI sceSslUnloadCert(int);
+int APS5_VABI sceSslGetSubjectName(int, const void*, void**);
+int APS5_VABI sceSslGetIssuerName(int, const void*, void**);
+int APS5_VABI sceSslGetSerialNumber(int, const void*, const std::uint8_t**, std::size_t*);
+int APS5_VABI sceSslGetNameEntryCount(int, const void*);
+int APS5_VABI sceSslGetNameEntryInfo(int, const void*, int, char*, std::size_t, std::uint8_t*, std::size_t, std::size_t*);
+int APS5_VABI sceSslFreeSslCertName(int, void*);
 }
 
 struct SslMemoryPoolStats {
@@ -83,6 +89,29 @@ int main() {
     Require(Throws([&] { sceSslFreeCaList(context, &foreign); }));
     foreign = {&handle, 0};
     Require(Throws([&] { sceSslFreeCaList(context, &foreign); }));
+
+    void* name = nullptr;
+    const std::uint8_t* serial = nullptr;
+    std::size_t serialSize = 0;
+    char oid[16];
+    std::uint8_t value[16];
+    std::size_t valueSize = 0;
+    Require(sceSslGetSubjectName(context, nullptr, &name) == invalidArg);
+    Require(sceSslGetSubjectName(context, &marker, nullptr) == invalidArg);
+    Require(sceSslGetIssuerName(context, nullptr, &name) == invalidArg);
+    Require(sceSslGetSerialNumber(context, nullptr, &serial, &serialSize) == invalidArg);
+    Require(sceSslGetSerialNumber(context, &marker, nullptr, &serialSize) == invalidArg);
+    Require(sceSslGetNameEntryCount(context, nullptr) == invalidArg);
+    Require(sceSslGetNameEntryInfo(context, nullptr, 0, oid, sizeof(oid), value, sizeof(value), &valueSize) == invalidArg);
+    Require(sceSslGetNameEntryInfo(context, &marker, 0, nullptr, sizeof(oid), value, sizeof(value), &valueSize) == invalidArg);
+    Require(sceSslFreeSslCertName(context, nullptr) == invalidArg);
+    Require(Throws([&] { sceSslGetSubjectName(context, &marker, &name); }));
+    Require(Throws([&] { sceSslGetIssuerName(context, &marker, &name); }));
+    Require(Throws([&] { sceSslGetSerialNumber(context, &marker, &serial, &serialSize); }));
+    Require(Throws([&] { sceSslGetNameEntryCount(context, &marker); }));
+    Require(Throws([&] { sceSslGetNameEntryInfo(context, &marker, 0, oid, sizeof(oid), value, sizeof(value), &valueSize); }));
+    Require(Throws([&] { sceSslFreeSslCertName(context, &marker); }));
+    Require(name == nullptr && serial == nullptr && serialSize == 0 && valueSize == 0);
 
     Require(sceSslUnloadCert(context) == 0);
     Require(sceSslGetCaList(context, &list) == notFound);

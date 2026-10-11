@@ -374,8 +374,17 @@ int* APS5_VABI sceNetErrnoLoc(void) {
     return errno_slot();
 }
 
+// Debug dump of the socket table, the emulator's counterpart of the console's netstat output.
 int APS5_VABI sceNetShowNetstat(void) {
-    NotImplemented_nid_no_patch(__func__);
+    std::lock_guard lk(g_mutex);
+    std::fprintf(stderr, "[sceNet] %zu socket(s)\n", g_socks.size());
+    for (const auto& [id, sock] : g_socks) {
+        const char* family = sock.family == NET_AF_INET6 ? "inet6" : "inet";
+        const char* type = sock.type == NET_SOCK_STREAM ? "stream" : sock.type == NET_SOCK_DGRAM ? "dgram" : "raw";
+        const char* state = sock.listening ? "listen" : sock.bound ? "bound" : "-";
+        std::fprintf(stderr, "[sceNet] %d %s %s %s%s\n", id, family, type, state, sock.nonblock ? " nbio" : "");
+    }
+    std::fflush(stderr);
     return 0;
 }
 
@@ -1249,14 +1258,16 @@ int APS5_VABI sceNetResolverGetError(int rid, int* status) {
     return 0;
 }
 
-int APS5_VABI sceNetResolverAbort(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+// Lookups run to completion inside the Start calls, so no lookup is ever in flight to abort.
+int APS5_VABI sceNetResolverAbort(int rid, int flags) {
+    (void)flags;
+    std::lock_guard lk(g_mutex);
+    return g_resolvers.count(rid) != 0 ? 0 : fail(NET_EBADF);
 }
 
-int APS5_VABI sceNetResolverStartNtoaMultipleRecords() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNetResolverStartNtoaMultipleRecords(int rid, const char* hostname, NetResolverInfo* info, int timeout,
+    int retry, int flags) {
+    return sceNetResolverStartNtoaMultipleRecordsEx(rid, hostname, info, timeout, retry, flags);
 }
 
 extern const std::uint8_t in6addr_any_nid_postfix[16] = {};

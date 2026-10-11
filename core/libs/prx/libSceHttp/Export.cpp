@@ -5,14 +5,32 @@
 #include "prx/libSceHttp/src/HttpErrors.hpp"
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <limits>
+#include <mutex>
 #include <stdexcept>
 #include <string_view>
-#include <thread>
 
 // No network is emulated: contexts, templates and requests can be created, but any request
 // that would touch the network fails with the library's network error.
 static std::atomic<int> g_nextHandle{1};
+
+static constexpr int ERROR_ABORTED = static_cast<int>(0x80431080);
+
+using HttpRequestStatusCallback = void (*)(int request, int status, void* user_arg);
+
+namespace {
+
+// No request ever becomes pending, so a wait only ends on its timeout or on sceHttpAbortWaitRequest.
+struct EpollState : HttpEpoll {
+    std::mutex mutex;
+    std::condition_variable wake;
+    bool aborted = false;
+};
+
+EpollState* StateOf(HttpEpollHandle eh) { return static_cast<EpollState*>(eh); }
+
+}
 
 extern "C" {
 
@@ -48,7 +66,7 @@ int APS5_VABI sceHttpCreateConnectionWithURL(int tmpl_id, const char* url, int e
 int APS5_VABI sceHttpCreateEpoll(int http_ctx_id, HttpEpollHandle* eh) {
     (void)http_ctx_id;
     if (!eh) return ERROR_INVALID_VALUE;
-    *eh = new HttpEpoll{};
+    *eh = new EpollState{};
     return 0;
 }
 
@@ -93,7 +111,7 @@ int APS5_VABI sceHttpDeleteTemplate(int tmpl_id) {
 
 int APS5_VABI sceHttpDestroyEpoll(int http_ctx_id, HttpEpollHandle eh) {
     (void)http_ctx_id;
-    delete eh;
+    delete StateOf(eh);
     return 0;
 }
 
@@ -150,10 +168,10 @@ int APS5_VABI sceHttpSetAuthInfoCallback(int id, HttpAuthInfoCallback callback, 
     return 0;
 }
 
+// No response is ever received, so there are no cookies to store or send either way.
 int APS5_VABI sceHttpSetCookieEnabled(int id, int enable) {
     (void)id;
     if (static_cast<uint32_t>(enable) > 1) return ERROR_INVALID_VALUE;
-    if (enable != 0) NotImplemented_nid_no_patch(__func__);
     return 0;
 }
 
@@ -249,9 +267,16 @@ int APS5_VABI sceHttpUnsetEpoll(int id) {
 
 int APS5_VABI sceHttpWaitRequest(HttpEpollHandle eh, HttpNBEvent* nbev, int maxevents, int timeout) {
     if (!eh || !nbev || maxevents <= 0) return ERROR_INVALID_VALUE;
-    if (timeout < 0) NotImplemented_nid_no_patch(__func__);
-    std::this_thread::sleep_for(std::chrono::microseconds(timeout));
-    return 0;
+    auto* state = StateOf(eh);
+    std::unique_lock lock(state->mutex);
+    const auto aborted = [state] { return state->aborted; };
+    if (timeout < 0) {
+        state->wake.wait(lock, aborted);
+    } else if (!state->wake.wait_for(lock, std::chrono::microseconds(timeout), aborted)) {
+        return 0;
+    }
+    state->aborted = false;
+    return ERROR_ABORTED;
 }
 
 int APS5_VABI sceHttpCreateRequestWithURL(int conn_id, int method, const char* url, uint64_t content_length) {
@@ -287,8 +312,11 @@ int APS5_VABI sceHttpSetInflateGZIPEnabled(int id, int enable) {
     return 0;
 }
 
-int APS5_VABI sceHttpSetRequestStatusCallback(void) {
-    NotImplemented_nid_no_patch(__func__);
+// Requests never reach the network, so their status never changes and the callback is never called.
+int APS5_VABI sceHttpSetRequestStatusCallback(int id, HttpRequestStatusCallback cbfunc, void* user_arg) {
+    (void)id;
+    (void)cbfunc;
+    (void)user_arg;
     return 0;
 }
 
@@ -421,8 +449,14 @@ int APS5_VABI sceHttpSetRedirectCallback(int id, HttpRedirectCallback cbfunc, vo
     return 0;
 }
 
-int APS5_VABI sceHttpAbortWaitRequest(void) {
-    NotImplemented_nid_no_patch(__func__);
+int APS5_VABI sceHttpAbortWaitRequest(HttpEpollHandle eh) {
+    if (!eh) return ERROR_INVALID_VALUE;
+    auto* state = StateOf(eh);
+    {
+        std::lock_guard lock(state->mutex);
+        state->aborted = true;
+    }
+    state->wake.notify_all();
     return 0;
 }
 }

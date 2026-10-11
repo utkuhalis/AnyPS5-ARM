@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <chrono>
+#include <thread>
 
 extern "C" {
 int APS5_VABI sceHttpUriParse(SceHttpUriElement*, const char*, void*, std::size_t*, std::size_t);
@@ -16,6 +18,9 @@ int APS5_VABI sceHttpUriSweepPath(char*, const char*, std::size_t);
 int APS5_VABI sceHttpCreateEpoll(int, HttpEpollHandle*);
 int APS5_VABI sceHttpDestroyEpoll(int, HttpEpollHandle);
 int APS5_VABI sceHttpWaitRequest(HttpEpollHandle, HttpNBEvent*, int, int);
+int APS5_VABI sceHttpAbortWaitRequest(HttpEpollHandle);
+int APS5_VABI sceHttpSetCookieEnabled(int, int);
+int APS5_VABI sceHttpSetRequestStatusCallback(int, void (*)(int, int, void*), void*);
 int APS5_VABI sceHttpReadData(int, void*, std::size_t);
 int APS5_VABI sceHttpCreateRequest2(int, const char*, const char*, std::uint64_t);
 int APS5_VABI sceHttpsEnableOption(int, std::uint32_t);
@@ -196,7 +201,22 @@ int main() {
     Require(sceHttpWaitRequest(epoll, nullptr, 2, 0) == invalidValue);
     Require(sceHttpWaitRequest(epoll, events, 0, 0) == invalidValue);
     Require(sceHttpWaitRequest(nullptr, events, 2, 0) == invalidValue);
+    constexpr int aborted = static_cast<int>(0x80431080);
+    Require(sceHttpAbortWaitRequest(nullptr) == invalidValue);
+    Require(sceHttpAbortWaitRequest(epoll) == 0);
+    Require(sceHttpWaitRequest(epoll, events, 2, 0) == aborted);
+    Require(sceHttpWaitRequest(epoll, events, 2, 0) == 0);
+    std::thread aborter([epoll] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        Require(sceHttpAbortWaitRequest(epoll) == 0);
+    });
+    Require(sceHttpWaitRequest(epoll, events, 2, -1) == aborted);
+    aborter.join();
     Require(sceHttpDestroyEpoll(1, epoll) == 0);
+    Require(sceHttpSetCookieEnabled(1, 0) == 0);
+    Require(sceHttpSetCookieEnabled(1, 1) == 0);
+    Require(sceHttpSetCookieEnabled(1, 2) == invalidValue);
+    Require(sceHttpSetRequestStatusCallback(1, nullptr, nullptr) == 0);
 
     char data[16];
     Require(sceHttpReadData(1, data, sizeof(data)) == network);
