@@ -86,11 +86,14 @@ int APS5_VABI sceImeKeyboardSetMode(int32_t user_id, uint32_t mode) {
  return (mode & ~ValidKeyboardModes) == 0 ? 0 : ErrorInvalidMode;
 }
 
+// There is no on-screen keyboard service to connect to, so a valid request never opens a panel.
 int APS5_VABI sceImeOpen_nid_postfix(const Param* param, const ExtendedParam* extended) {
- (void)param;
  (void)extended;
- NotImplemented_nid_no_patch(__func__);
- return 0;
+ if (!param || !param->input_text_buffer || !param->handler) return ErrorInvalidAddress;
+ if (param->user_id == UserIdInvalid) return ErrorInvalidUserId;
+ if (param->type > TypeNumber) return ErrorInvalidType;
+ if ((param->option & ~ValidOptions) != 0) return ErrorInvalidOption;
+ return ErrorConnectionFailed;
 }
 
 void APS5_VABI sceImeParamInit(Param* param) {
