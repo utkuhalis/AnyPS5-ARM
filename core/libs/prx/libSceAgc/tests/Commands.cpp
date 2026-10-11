@@ -35,6 +35,15 @@ extern "C" std::uint32_t* APS5_VABI sceAgcAcbPopMarker(CommandBuffer* buf);
 extern "C" std::uint32_t* APS5_VABI sceAgcAcbSetMarker(CommandBuffer* buf, const char* str, std::uint32_t color);
 extern "C" std::uint32_t* APS5_VABI sceAgcDcbSetIndexBuffer(CommandBuffer* buf, std::uint64_t indexAddress);
 extern "C" std::uint32_t* APS5_VABI sceAgcSetNop(CommandBuffer* buf, std::uint32_t sizeDw);
+extern "C" std::uint32_t* APS5_VABI sceAgcDcbContextStateOp(CommandBuffer* buf, std::uint32_t operation);
+extern "C" std::uint32_t* APS5_VABI sceAgcDcbAcquireMem(CommandBuffer* buf, std::uint8_t engine, std::uint32_t cbDbOp, std::uint32_t gcrControl, const volatile void* base, std::uint64_t sizeBytes, std::uint32_t pollCycles);
+extern "C" int APS5_VABI sceAgcAcquireMemSetEngine(std::uint32_t* cmd, std::uint8_t engine);
+extern "C" std::uint32_t* APS5_VABI sceAgcDcbSetWorkloadsActive(CommandBuffer* buf, std::uint32_t streamId, const std::uint32_t* ids, std::uint32_t count);
+extern "C" std::uint32_t* APS5_VABI sceAgcDcbSetWorkloadComplete(CommandBuffer* buf, std::uint32_t streamId, std::uint32_t id);
+extern "C" std::uint32_t* APS5_VABI sceAgcDcbSetWorkloadStreamInactive(CommandBuffer* buf, std::uint32_t streamId);
+extern "C" std::uint32_t* APS5_VABI sceAgcAcbSetWorkloadsActive(CommandBuffer* buf, std::uint32_t streamId, const std::uint32_t* ids, std::uint32_t count);
+extern "C" std::uint32_t* APS5_VABI sceAgcAcbSetWorkloadComplete(CommandBuffer* buf, std::uint32_t streamId, std::uint32_t id);
+extern "C" std::uint32_t* APS5_VABI sceAgcAcbSetWorkloadStreamInactive(CommandBuffer* buf, std::uint32_t streamId);
 
 namespace {
 
@@ -387,6 +396,51 @@ void testMemory() {
     check(storage.words == beforeMask, "invalid mask patch modified packet memory");
 }
 
+void testContextStateUnversioned() {
+    for (std::uint32_t operation = 0; operation <= 3; ++operation) {
+        Storage versioned;
+        Storage unversioned;
+        sceAgcDcbContextStateOp_0100(&versioned.buffer, operation);
+        auto* packet = sceAgcDcbContextStateOp(&unversioned.buffer, operation);
+        check(packet == unversioned.words.data() && unversioned.words == versioned.words, "unversioned context state packets differ from 0100");
+        check(unversioned.buffer.cursor_up == unversioned.words.data() + (versioned.buffer.cursor_up - versioned.words.data()), "unversioned context state cursor mismatch");
+    }
+    Storage storage;
+    expectFailure([&] { sceAgcDcbContextStateOp(&storage.buffer, 4); });
+    expectFailure([] { sceAgcDcbContextStateOp(nullptr, 0); });
+    check(storage.buffer.cursor_up == storage.words.data(), "invalid context state operation advanced the cursor");
+}
+
+void testAcquireMemEngine() {
+    Storage storage;
+    auto* packet = sceAgcDcbAcquireMem(&storage.buffer, 0, 0x12, 0x345, nullptr, 0xffffffffffffffffull, 40);
+    check(sceAgcAcquireMemSetEngine(packet, 1) == 0 && packet[1] == 0x80000012u, "engine patch did not set bit 31");
+    check(sceAgcAcquireMemSetEngine(packet, 0) == 0 && packet[1] == 0x12u, "engine patch did not clear bit 31");
+    const auto before = storage.words;
+    expectFailure([&] { sceAgcAcquireMemSetEngine(packet, 2); });
+    expectFailure([&] { sceAgcAcquireMemSetEngine(packet + 1, 1); });
+    check(storage.words == before, "invalid engine patch modified packet memory");
+}
+
+void testWorkloads() {
+    Storage storage;
+    storage.words.fill(0xdeadbeefu);
+    const std::array<std::uint32_t, 3> ids{4, 5, 6};
+    auto* active = sceAgcDcbSetWorkloadsActive(&storage.buffer, 7, ids.data(), 3);
+    auto* complete = sceAgcDcbSetWorkloadComplete(&storage.buffer, 7, 5);
+    auto* inactive = sceAgcDcbSetWorkloadStreamInactive(&storage.buffer, 7);
+    auto* none = sceAgcAcbSetWorkloadsActive(&storage.buffer, 8, nullptr, 0);
+    auto* acbComplete = sceAgcAcbSetWorkloadComplete(&storage.buffer, 8, 1);
+    auto* acbInactive = sceAgcAcbSetWorkloadStreamInactive(&storage.buffer, 8);
+    const std::array<std::uint32_t, 18> expected{0xc0041000u, 7, 3, 4, 5, 6, 0xc0011000u, 7, 5, 0xc0001000u, 7, 0xc0011000u, 8, 0, 0xc0011000u, 8, 1, 0xc0001000u};
+    check(std::equal(expected.begin(), expected.end(), storage.words.begin()) && storage.words[18] == 8 && storage.words[19] == 0xdeadbeefu, "workload packet mismatch");
+    check(active == storage.words.data() && complete == active + 6 && inactive == complete + 3 && none == inactive + 2 && acbComplete == none + 3 && acbInactive == acbComplete + 3, "workload packet placement mismatch");
+    expectFailure([&] { sceAgcDcbSetWorkloadsActive(&storage.buffer, 7, nullptr, 1); });
+    expectFailure([&] { sceAgcAcbSetWorkloadsActive(&storage.buffer, 7, ids.data(), 0x3fffu); });
+    expectFailure([] { sceAgcDcbSetWorkloadComplete(nullptr, 0, 0); });
+    check(storage.buffer.cursor_up == storage.words.data() + 19, "invalid workload command advanced the cursor");
+}
+
 void testDefaults() {
     std::uint32_t state = 0x12345678;
     check(sceAgcInit_0090(&state, 8) == 0 && state == 0x12345678, "AGC initialization failed or modified caller state");
@@ -431,6 +485,9 @@ int main(int argc, char** argv) {
         testRegisterRange();
         testPacketPayloadAddress();
         testMemory();
+        testContextStateUnversioned();
+        testAcquireMemEngine();
+        testWorkloads();
         testDefaults();
         LibcRunShutdown_nid_postfix();
         std::puts("AGC command tests passed");
