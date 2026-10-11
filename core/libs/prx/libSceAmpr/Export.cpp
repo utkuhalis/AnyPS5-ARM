@@ -9,6 +9,8 @@
 #include <atomic>
 #include <cstring>
 #include <limits>
+#include <string>
+#include <system_error>
 #include <stdexcept>
 #include <thread>
 
@@ -231,7 +233,39 @@ static std::atomic_flag sharedPtrSpinLock;
 
 extern "C" {
 int APS5_VABI pthread_join_nid_postfix(Pthread thread, void** value);
+int APS5_VABI pthread_create_nid_postfix(Pthread* thread, const PthreadAttr* attr, PthreadEntry entry, void* arg);
+int APS5_VABI scePthreadGetthreadid(void);
+int APS5_VABI _Cnd_init_nid_postfix(void** handle);
+void APS5_VABI _Cnd_destroy_nid_postfix(void** handle);
+int APS5_VABI _Cnd_wait_nid_postfix(void** condition, void** mutex);
+int APS5_VABI _Mtx_init_nid_postfix(void** handle, int type);
+void APS5_VABI _Mtx_destroy_nid_postfix(void** handle);
+int APS5_VABI _Mtx_lock_nid_postfix(void** handle);
+int APS5_VABI _Mtx_unlock_nid_postfix(void** handle);
+[[noreturn]] void APS5_VABI _ZSt9terminatev_nid_postfix();
+int LibcConditionSignal_nid_no_patch(void** handle);
 int APS5_VABI wcsrtombs_s_nid_postfix(std::size_t* result, char* destination, std::size_t capacity, const std::uint16_t** source, std::size_t limit, void* state);
+}
+
+// Dinkumware's std::thread launch pad: the new thread runs the pad's only virtual function, _Go,
+// and _Launch returns once that function has copied what it needs and called _Release.
+struct ThreadPad {
+    void* const* vtable;
+    void* condition;
+    void* mutex;
+    bool started;
+};
+
+using PadGo = unsigned (APS5_VABI *)(ThreadPad* self);
+
+static void* APS5_VABI RunPad(void* data) {
+    auto* pad = static_cast<ThreadPad*>(data);
+    const unsigned result = reinterpret_cast<PadGo>(pad->vtable[0])(pad);
+    return reinterpret_cast<void*>(static_cast<std::uintptr_t>(result));
+}
+
+static void ThreadCall(int result, const char* what) {
+    if (result != ThrdSuccess) throw std::runtime_error(std::string("std::_Pad: ") + what + " failed");
 }
 
 static KernelTimespec XtimeDeadline(const Xtime& time) {
@@ -847,9 +881,14 @@ int APS5_VABI _ZNSt8ios_base7_AddstdEPS__nid_postfix(void) {
     return 0;
 }
 
-int APS5_VABI _ZSt16_Throw_Cpp_errori_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+// The error codes of Dinkumware's <thread> and <mutex>, in the order of its _Throw_Cpp_error table.
+[[noreturn]] void APS5_VABI _ZSt16_Throw_Cpp_errori_nid_postfix(int code) {
+    static constexpr std::errc codes[] = {
+        std::errc::device_or_resource_busy, std::errc::invalid_argument, std::errc::no_such_process, std::errc::not_enough_memory,
+        std::errc::operation_not_permitted, std::errc::resource_deadlock_would_occur, std::errc::resource_unavailable_try_again,
+    };
+    if (code < 0 || code >= static_cast<int>(std::size(codes))) throw std::invalid_argument("_Throw_Cpp_error: unknown error code " + std::to_string(code));
+    throw std::system_error(std::make_error_code(codes[code]));
 }
 
 int APS5_VABI _Thrd_join_nid_postfix(Pthread thread, int* code) {
@@ -859,48 +898,57 @@ int APS5_VABI _Thrd_join_nid_postfix(Pthread thread, int* code) {
     return ThrdSuccess;
 }
 
-int APS5_VABI _ZNSt4_Pad8_ReleaseEv_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+void APS5_VABI _ZNSt4_Pad8_ReleaseEv_nid_postfix(ThreadPad* self) {
+    if (!self) APS5_INVALID_ARG_EX;
+    ThreadCall(_Mtx_lock_nid_postfix(&self->mutex), "locking the pad");
+    self->started = true;
+    LibcConditionSignal_nid_no_patch(&self->condition);
+    ThreadCall(_Mtx_unlock_nid_postfix(&self->mutex), "unlocking the pad");
 }
 
-int APS5_VABI _ZNSt4_PadC2Ev_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+void APS5_VABI _ZNSt4_PadC2Ev_nid_postfix(ThreadPad* self) {
+    if (!self) APS5_INVALID_ARG_EX;
+    ThreadCall(_Cnd_init_nid_postfix(&self->condition), "creating the condition");
+    if (_Mtx_init_nid_postfix(&self->mutex, 1) != ThrdSuccess) {
+        _Cnd_destroy_nid_postfix(&self->condition);
+        throw std::runtime_error("std::_Pad: creating the mutex failed");
+    }
+    self->started = false;
 }
 
-int APS5_VABI _ZNSt4_PadD2Ev_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+void APS5_VABI _ZNSt4_PadD2Ev_nid_postfix(ThreadPad* self) {
+    if (!self) APS5_INVALID_ARG_EX;
+    _Cnd_destroy_nid_postfix(&self->condition);
+    _Mtx_destroy_nid_postfix(&self->mutex);
 }
 
 int APS5_VABI _Thrd_id_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+    return scePthreadGetthreadid();
 }
 
-int APS5_VABI _ZNSt4_Pad7_LaunchEPP7pthread_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+void APS5_VABI _ZNSt4_Pad7_LaunchEPP7pthread_nid_postfix(ThreadPad* self, Pthread* thread) {
+    if (!self || !thread) APS5_INVALID_ARG_EX;
+    if (pthread_create_nid_postfix(thread, nullptr, RunPad, self) != 0) _ZSt16_Throw_Cpp_errori_nid_postfix(6);
+    ThreadCall(_Mtx_lock_nid_postfix(&self->mutex), "locking the pad");
+    while (!self->started) ThreadCall(_Cnd_wait_nid_postfix(&self->condition, &self->mutex), "waiting for the thread");
+    ThreadCall(_Mtx_unlock_nid_postfix(&self->mutex), "unlocking the pad");
 }
 
-int APS5_VABI _ZNSt7num_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE2idE_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
+// locale::id objects: 0 until the facet is first looked up, as libc's ids are.
+std::uint64_t _ZNSt7num_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE2idE_nid_postfix = 0;
 
-int APS5_VABI _Cnd_signal_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI _Cnd_signal_nid_postfix(void** condition) {
+    return LibcConditionSignal_nid_no_patch(condition);
 }
 
 void APS5_VABI _Unlock_shared_ptr_spin_lock_nid_postfix(void) {
     sharedPtrSpinLock.clear(std::memory_order_release);
 }
 
-int APS5_VABI _Cnd_init_with_name_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+// The name only labels the condition for debugging tools.
+int APS5_VABI _Cnd_init_with_name_nid_postfix(void** condition, const char* name) {
+    (void)name;
+    return _Cnd_init_nid_postfix(condition);
 }
 
 int APS5_VABI _ZTVN10__cxxabiv120__function_type_infoE_nid_postfix(void) {
@@ -918,10 +966,7 @@ int APS5_VABI _ZNKSt8time_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE3get
     return 0;
 }
 
-int APS5_VABI _ZNSt8time_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE2idE_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
+std::uint64_t _ZNSt8time_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE2idE_nid_postfix = 0;
 
 int APS5_VABI _ZTVN10__cxxabiv119__pointer_type_infoE_nid_postfix(void) {
     NotImplemented_nid_no_patch(__func__);
@@ -959,8 +1004,10 @@ int APS5_VABI wcstombs_s_nid_postfix(std::size_t* result, char* destination, std
     return wcsrtombs_s_nid_postfix(result, destination, capacity, &source, limit, state.data());
 }
 
-int APS5_VABI __cxa_call_unexpected_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+// An exception escaped a dynamic exception specification: with no unexpected handler other than
+// the default one, that terminates.
+[[noreturn]] void APS5_VABI __cxa_call_unexpected_nid_postfix(void* exception) {
+    (void)exception;
+    _ZSt9terminatev_nid_postfix();
 }
 }

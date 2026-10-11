@@ -86,6 +86,10 @@ void APS5_VABI _ZN3sce4Json14InitParameter2C1Ev(void*);
 void APS5_VABI _ZN3sce4Json14InitParameter212setAllocatorEPNS0_12MemAllocatorEPv(void*, void*, void*);
 void APS5_VABI _ZN3sce4Json14InitParameter217setFileBufferSizeEm(void*, std::size_t);
 int APS5_VABI _ZN3sce4Json11Initializer10initializeEPKNS0_14InitParameter2E(void*, const void*);
+void APS5_VABI _ZN3sce4Json14InitParameter2C2Ev(void*);
+void APS5_VABI _ZN3sce4Json17InitParameterRttiC1EPNS0_14AllocParamRttiEPvm(void*, void*, void*, std::size_t);
+void APS5_VABI _ZN3sce4Json18InitParameterRtti216setAllocatorRttiEPNS0_14AllocParamRttiEPv(void*, void*, void*);
+void APS5_VABI _ZN3sce4Json12MemAllocator11notifyErrorEimPv(void*, int, std::size_t, void*);
 }
 
 static void Check(bool value, int line) {
@@ -359,6 +363,21 @@ static void ValueAccess() {
     Require(_ZN3sce4Json11Initializer10initializeEPKNS0_14InitParameter2E(initializer, parameter) == 0);
     Require(_ZN3sce4Json11Initializer9terminateEv(initializer) == 0);
     Require(_ZN3sce4Json11InitializerD1Ev(initializer) == 0);
+
+    std::memset(parameter, 0xff, sizeof(parameter));
+    _ZN3sce4Json14InitParameter2C2Ev(parameter);
+    std::memcpy(stored, parameter, sizeof(stored));
+    Require(stored[0] == nullptr && stored[1] == nullptr && stored[2] == nullptr);
+
+    int allocParam = 0;
+    _ZN3sce4Json17InitParameterRttiC1EPNS0_14AllocParamRttiEPvm(parameter, &allocParam, &userData, 8192);
+    std::memcpy(stored, parameter, sizeof(stored));
+    Require(stored[0] == &allocParam && stored[1] == &userData && reinterpret_cast<std::uintptr_t>(stored[2]) == 8192);
+    int otherParam = 0;
+    _ZN3sce4Json18InitParameterRtti216setAllocatorRttiEPNS0_14AllocParamRttiEPv(parameter, &otherParam, nullptr);
+    std::memcpy(stored, parameter, sizeof(stored));
+    Require(stored[0] == &otherParam && stored[1] == nullptr && reinterpret_cast<std::uintptr_t>(stored[2]) == 8192);
+    _ZN3sce4Json12MemAllocator11notifyErrorEimPv(&allocator, -1, 64, &userData);
 }
 
 static void ValueClear() {

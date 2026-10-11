@@ -20,6 +20,7 @@ intptr_t APS5_VABI sceKernelGetEventFflags(const KernelEvent* ev);
 int APS5_VABI sceKernelGetEventFilter(const KernelEvent* ev);
 uintptr_t APS5_VABI sceKernelGetEventId(const KernelEvent* ev);
 void* APS5_VABI sceKernelGetEventUserData(const KernelEvent* ev);
+int APS5_VABI sceKernelGetEventError(const KernelEvent* ev);
 }
 
 static constexpr int SCE_OK = 0;
@@ -72,6 +73,13 @@ static void VerifyPeriodicTimer() {
     Require(sceKernelGetEventFilter(&events[0]) == EVFILT_TIMER);
     Require(sceKernelGetEventData(&events[0]) >= 5);
     Require(sceKernelGetEventUserData(&events[0]) == &first);
+    Require(sceKernelGetEventError(&events[0]) == 0);
+    KernelEvent failed = events[0];
+    failed.flags = 0x4000;
+    failed.data = 9;
+    Require(sceKernelGetEventError(&failed) == static_cast<int>(0x80020009));
+    failed.flags = 0;
+    Require(sceKernelGetEventError(&failed) == 0);
     Require(sceKernelWaitEqueue(eq, events, 2, &count, &wait) == SCE_OK);
     Require(count == 1 && sceKernelGetEventData(&events[0]) >= 1);
 

@@ -2,6 +2,7 @@
 #include "prx/libkernel/Time/include/Time.hpp"
 #include "prx/libc/include/General.hpp"
 #include "prx/libkernel/Socket/include/SocketRuntime.hpp"
+#include "prx/libkernel/File/include/File.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -96,11 +97,23 @@ void KernelEqueuePrivate::WakePollers() {
 }
 
 void KernelEqueuePrivate::WaitForDescriptors(std::unique_lock<std::mutex>& lock, std::uint64_t deadlineNanos) {
+    // Files and sockets waiting for a low watermark have no host readiness to wait on: a socket
+    // under its watermark is already readable. Those are polled again every millisecond.
+    constexpr std::uint64_t RepollNanos = 1000000;
     std::vector<GuestSockets::Interest> interests;
+    bool repoll = false;
     for (const auto& e : m_events) {
-        if (e.filter.pollFunc != nullptr) {
-            interests.push_back({static_cast<int>(e.event.ident), e.event.filter == EVFILT_WRITE});
+        if (e.filter.pollFunc == nullptr) continue;
+        const int descriptor = static_cast<int>(e.event.ident);
+        if (descriptor < GuestSockets::FirstDescriptor || reinterpret_cast<std::uintptr_t>(e.filter.data) > 1) {
+            repoll = true;
+            continue;
         }
+        interests.push_back({descriptor, e.event.filter == EVFILT_WRITE});
+    }
+    if (repoll) {
+        const std::uint64_t next = TimedWait::NowNanos() + RepollNanos;
+        if (deadlineNanos == 0 || deadlineNanos > next) deadlineNanos = next;
     }
     const auto waker = GuestSockets::CurrentWaker();
     m_pollers.push_back(waker);
@@ -543,14 +556,55 @@ int APS5_VABI sceKernelDeleteAmprSystemEvent(KernelEqueue eq, int id) {
     return sceKernelDeleteAmprEvent(eq, id);
 }
 
+extern "C" int APS5_VABI sceKernelFstat(int d, FileStat* sb);
+
+namespace {
+
+constexpr std::uint16_t FileTypeMask = 0170000;
+constexpr std::uint16_t RegularFile = 0100000;
+constexpr std::uint16_t Directory = 0040000;
+constexpr int SeekCurrent = 1;
+
+std::size_t LowWatermark(const KernelEqueueEvent* e) {
+    return reinterpret_cast<std::uintptr_t>(e->filter.data);
+}
+
+// A socket is ready once the bytes it can read or write reach the low watermark, or at EOF.
+bool PollSocket(KernelEqueueEvent* e) {
+    std::int64_t data = 0;
+    bool eof = false;
+    if (!GuestSockets::Ready(static_cast<int>(e->event.ident), e->event.filter == EVFILT_WRITE, &data, &eof)) {
+        return false;
+    }
+    const std::size_t watermark = LowWatermark(e);
+    if (!eof && watermark > 1 && static_cast<std::uint64_t>(data) < watermark) return false;
+    e->event.data = static_cast<intptr_t>(data);
+    e->event.flags = static_cast<uint16_t>(eof ? (e->event.flags | EV_EOF) : (e->event.flags & ~EV_EOF));
+    return true;
+}
+
+// Files follow FreeBSD's vnode filters: a regular file or directory is readable while its offset
+// is before its end (data is the bytes left), any file is always writable, and other files
+// (devices) are always readable. The low watermark does not apply to them.
+bool PollFile(KernelEqueueEvent* e) {
+    const int descriptor = static_cast<int>(e->event.ident);
+    FileStat stat{};
+    if (!DescriptorIsOpen_nid_no_patch(descriptor) || sceKernelFstat(descriptor, &stat) != 0) return false;
+    e->event.data = 0;
+    if (e->event.filter == EVFILT_WRITE) return true;
+    const auto type = static_cast<std::uint16_t>(stat.st_mode & FileTypeMask);
+    if (type != RegularFile && type != Directory) return true;
+    const std::int64_t offset = sceKernelLseek(descriptor, 0, SeekCurrent);
+    if (offset < 0 || offset >= stat.st_size) return false;
+    e->event.data = static_cast<intptr_t>(stat.st_size - offset);
+    return true;
+}
+
+}
+
 static int AddDescriptorEvent(KernelEqueue eq, int fd, std::size_t size, void* udata, int16_t filter) {
-    if (fd < GuestSockets::FirstDescriptor) {
-        NotImplemented_nid_no_patch(filter == EVFILT_READ ? "sceKernelAddReadEvent: non-socket descriptor" : "sceKernelAddWriteEvent: non-socket descriptor");
-    }
-    if (size > 1) {
-        NotImplemented_nid_no_patch(filter == EVFILT_READ ? "sceKernelAddReadEvent: low watermark" : "sceKernelAddWriteEvent: low watermark");
-    }
-    if (!GuestSockets::IsOpen(fd)) {
+    const bool socket = fd >= GuestSockets::FirstDescriptor;
+    if (socket ? !GuestSockets::IsOpen(fd) : !DescriptorIsOpen_nid_no_patch(fd)) {
         return SCE_KERNEL_ERROR_EBADF;
     }
     KernelEqueueEvent event{};
@@ -558,16 +612,8 @@ static int AddDescriptorEvent(KernelEqueue eq, int fd, std::size_t size, void* u
     event.event.filter = filter;
     event.event.flags = EV_ADD;
     event.event.udata = udata;
-    event.filter.pollFunc = [](KernelEqueueEvent* e) {
-        std::int64_t data = 0;
-        bool eof = false;
-        if (!GuestSockets::Ready(static_cast<int>(e->event.ident), e->event.filter == EVFILT_WRITE, &data, &eof)) {
-            return false;
-        }
-        e->event.data = static_cast<intptr_t>(data);
-        e->event.flags = static_cast<uint16_t>(eof ? (e->event.flags | EV_EOF) : (e->event.flags & ~EV_EOF));
-        return true;
-    };
+    event.filter.data = reinterpret_cast<void*>(static_cast<std::uintptr_t>(size));
+    event.filter.pollFunc = socket ? PollSocket : PollFile;
     event.filter.resetFunc = [](KernelEqueueEvent* e) {
         e->triggered = false;
     };

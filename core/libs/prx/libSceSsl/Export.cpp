@@ -49,6 +49,24 @@ void RequireContext(const char* function, int sslCtxId) {
     if (!g_pools.contains(sslCtxId)) throw std::invalid_argument(std::string(function) + ": unknown context");
 }
 
+// No certificate is ever handed out (no CA list, and no connection reaches a server), so any
+// certificate or certificate name a title passes in cannot have come from this library.
+[[noreturn]] void ForeignObject(const char* function, const char* object) {
+    throw std::invalid_argument(std::string(function) + ": " + object + " not returned by libSceSsl");
+}
+
+int CertNameQuery(const char* function, int sslCtxId, const void* cert, void* certName) {
+    if (!cert || !certName) return ERROR_INVALID_ARG;
+    RequireContext(function, sslCtxId);
+    ForeignObject(function, "certificate");
+}
+
+int NameQuery(const char* function, int sslCtxId, const void* certName) {
+    if (!certName) return ERROR_INVALID_ARG;
+    RequireContext(function, sslCtxId);
+    ForeignObject(function, "certificate name");
+}
+
 }
 
 extern "C" {
@@ -99,9 +117,10 @@ int APS5_VABI sceSslClose() {
  return 0;
 }
 
-int APS5_VABI sceSslGetSerialNumber() {
- NotImplemented_nid_no_patch(__func__);
- return 0;
+int APS5_VABI sceSslGetSerialNumber(int sslCtxId, const void* cert, const uint8_t** data, size_t* size) {
+    if (!cert || !data || !size) return ERROR_INVALID_ARG;
+    RequireContext(__func__, sslCtxId);
+    ForeignObject(__func__, "certificate");
 }
 
 int APS5_VABI sceSslLoadCert() {
@@ -123,24 +142,23 @@ int APS5_VABI sceSslGetMemoryPoolStats(int ssl_ctx_id, SslMemoryPoolStats* stats
     return 0;
 }
 
-int APS5_VABI sceSslFreeSslCertName(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceSslFreeSslCertName(int sslCtxId, void* certName) {
+    return NameQuery(__func__, sslCtxId, certName);
 }
 
-int APS5_VABI sceSslGetIssuerName(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceSslGetIssuerName(int sslCtxId, const void* cert, void** certName) {
+    return CertNameQuery(__func__, sslCtxId, cert, certName);
 }
 
-int APS5_VABI sceSslGetNameEntryCount(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceSslGetNameEntryCount(int sslCtxId, const void* certName) {
+    return NameQuery(__func__, sslCtxId, certName);
 }
 
-int APS5_VABI sceSslGetNameEntryInfo(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceSslGetNameEntryInfo(int sslCtxId, const void* certName, int entryNum, char* oidName, size_t maxOidNameLen,
+                                     uint8_t* value, size_t maxValueLen, size_t* valueLen) {
+    (void)entryNum;
+    if (!oidName || !value || !valueLen || maxOidNameLen == 0 || maxValueLen == 0) return ERROR_INVALID_ARG;
+    return NameQuery(__func__, sslCtxId, certName);
 }
 
 int APS5_VABI sceSslGetPem(void) {
@@ -148,9 +166,8 @@ int APS5_VABI sceSslGetPem(void) {
     return 0;
 }
 
-int APS5_VABI sceSslGetSubjectName(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceSslGetSubjectName(int sslCtxId, const void* cert, void** certName) {
+    return CertNameQuery(__func__, sslCtxId, cert, certName);
 }
 
 }

@@ -39,9 +39,14 @@ int APS5_VABI sceNetResolverCreate(const char*, int, int);
 int APS5_VABI sceNetResolverStartNtoa(int, const char*, void*, int, int, int);
 int APS5_VABI sceNetResolverStartNtoaMultipleRecordsEx(int, const char*, void*, int, int, int);
 int APS5_VABI sceNetResolverDestroy(int);
+int APS5_VABI sceNetResolverStartNtoaMultipleRecords(int, const char*, void*, int, int, int);
+int APS5_VABI sceNetResolverAbort(int, int);
+int APS5_VABI sceNetShowNetstat(void);
 int APS5_VABI sceNetResolverGetError(int, int*);
 int APS5_VABI sceNetCtlGetState(int*);
 int APS5_VABI select_nid_postfix(int, void*, void*, void*, const void*);
+int APS5_VABI sceKernelOpen(const char*, int, std::uint16_t);
+int APS5_VABI sceKernelClose(int);
 int* APS5_VABI __error_nid_postfix();
 int APS5_VABI sceNetInetPton(int, const char*, void*);
 const char* APS5_VABI sceNetInetNtop(int, const void*, char*, std::uint32_t);
@@ -368,6 +373,25 @@ int main() {
     const std::int64_t bad_timeout[2]{0, 1000000};
     Require(select_nid_postfix(udp_receiver + 1, readable, nullptr, nullptr, bad_timeout) == -1 && *__error_nid_postfix() == 22);
     Require(select_nid_postfix(1025, nullptr, nullptr, nullptr, poll_now) == -1 && *__error_nid_postfix() == 22);
+    const int file = sceKernelOpen("guest_sce_net_select.bin", 0x202, 0644);
+    Require(file >= 0 && file < 1024 && file != udp_receiver);
+    const int highest = std::max(file, udp_receiver) + 1;
+    std::uint64_t readSet[16]{};
+    std::uint64_t writeSet[16]{};
+    std::uint64_t exceptSet[16]{};
+    readSet[file / 64] |= std::uint64_t{1} << (file % 64);
+    readSet[udp_receiver / 64] |= std::uint64_t{1} << (udp_receiver % 64);
+    writeSet[file / 64] |= std::uint64_t{1} << (file % 64);
+    exceptSet[file / 64] |= std::uint64_t{1} << (file % 64);
+    Require(select_nid_postfix(highest, readSet, writeSet, exceptSet, nullptr) == 2);
+    Require(((readSet[file / 64] >> (file % 64)) & 1u) != 0 && ((readSet[udp_receiver / 64] >> (udp_receiver % 64)) & 1u) == 0);
+    Require(((writeSet[file / 64] >> (file % 64)) & 1u) != 0 && exceptSet[file / 64] == 0);
+    exceptSet[file / 64] |= std::uint64_t{1} << (file % 64);
+    Require(select_nid_postfix(file + 1, nullptr, nullptr, exceptSet, poll_now) == 0 && exceptSet[file / 64] == 0);
+    Require(sceKernelClose(file) == 0);
+    std::remove("guest_sce_net_select.bin");
+    readSet[file / 64] |= std::uint64_t{1} << (file % 64);
+    Require(select_nid_postfix(file + 1, readSet, nullptr, nullptr, poll_now) == -1 && *__error_nid_postfix() == 9);
     CheckMessages(udp_receiver, udp_sender, address);
     Require(sceNetSocketClose(udp_sender) == 0);
     Require(sceNetSocketClose(udp_receiver) == 0);
@@ -413,7 +437,15 @@ int main() {
     Require(sceNetResolverStartNtoaMultipleRecordsEx(resolver, "guest-sce-net.invalid", records.data(), 5000000, 1, 0) ==
         static_cast<int>(0x804101E1) && records == resolved);
     Require(sceNetResolverGetError(resolver, nullptr) == static_cast<int>(0x80410116) && *sceNetErrnoLoc() == 22);
+    records.fill(0xA5);
+    Require(sceNetResolverStartNtoaMultipleRecords(resolver, "localhost", records.data(), 5000000, 1, 0) == 0);
+    Require(std::memcmp(records.data(), resolved.data(), 384) == 0);
+    Require(sceNetResolverStartNtoaMultipleRecords(resolver, "localhost", nullptr, 5000000, 1, 0) ==
+        static_cast<int>(0x80410116) && *sceNetErrnoLoc() == 22);
+    Require(sceNetResolverAbort(resolver, 0) == 0);
+    Require(sceNetShowNetstat() == 0);
     Require(sceNetResolverDestroy(resolver) == 0);
+    Require(sceNetResolverAbort(resolver, 0) == static_cast<int>(0x80410109) && *sceNetErrnoLoc() == 9);
     resolver_error = -1;
     Require(sceNetResolverGetError(resolver, &resolver_error) == static_cast<int>(0x80410109) &&
         *sceNetErrnoLoc() == 9 && resolver_error == -1);

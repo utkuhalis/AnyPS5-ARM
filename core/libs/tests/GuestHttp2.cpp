@@ -39,16 +39,6 @@ int APS5_VABI sceHttp2SetResolveRetry(int, std::int32_t);
 
 static void Require(bool value) { if (!value) std::abort(); }
 
-template <typename TCall>
-static bool Throws(TCall call) {
-    try {
-        call();
-    } catch (const std::exception&) {
-        return true;
-    }
-    return false;
-}
-
 int main() {
     const int context = sceHttp2Init(1, 1, 0x10000, 4);
     Require(context > 0);
@@ -88,11 +78,17 @@ int main() {
     Http2AsyncResult result{};
     Require(sceHttp2WaitAsync(request, &result, nullptr, nullptr) == 0);
     Require(result.req_id == request && result.result == static_cast<int>(0x80436063));
-    Require(Throws([&] { sceHttp2WaitAsync(request, &result, nullptr, nullptr); }));
-    Require(Throws([&] { sceHttp2SendRequestAsync(request, nullptr, 0, nullptr, nullptr); }));
+    constexpr int notFound = static_cast<int>(0x80436025);
+    constexpr int invalidValue = static_cast<int>(0x804361FE);
+    Require(sceHttp2WaitAsync(request, &result, nullptr, nullptr) == notFound);
+    Require(sceHttp2WaitAsync(request, nullptr, nullptr, nullptr) == invalidValue);
+    Require(sceHttp2WaitAsync(request, &result, nullptr, &tag) == invalidValue);
+    Require(sceHttp2SendRequestAsync(request, nullptr, 0, nullptr, nullptr) == invalidValue);
+    Require(sceHttp2SendRequestAsync(request, nullptr, 0, &option, &tag) == invalidValue);
+    Require(sceHttp2WaitAsync(request, &result, nullptr, nullptr) == notFound);
     Require(sceKernelDeleteUserEvent(eq, request) == 0);
-    Require(Throws([&] { sceHttp2SendRequestAsync(request, nullptr, 0, &option, nullptr); }));
-    Require(Throws([&] { sceHttp2WaitAsync(request, &result, nullptr, nullptr); }));
+    Require(sceHttp2SendRequestAsync(request, nullptr, 0, &option, nullptr) < 0);
+    Require(sceHttp2WaitAsync(request, &result, nullptr, nullptr) == notFound);
     Require(sceHttp2DeleteRequest(request) == 0);
     Require(sceKernelDeleteEqueue(eq) == 0);
     Require(sceHttp2Term(context) == 0);

@@ -776,10 +776,6 @@ int APS5_VABI _ZN3sce4Json6Parser5parseERNS0_5ValueEPKcm(Value* out, const char*
 }
 
 
-int APS5_VABI _ZN3sce4Json17InitParameterRttiC1EPNS0_14AllocParamRttiEPvm(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
 struct InitParameter2 {
     void* allocator;
     void* userData;
@@ -787,7 +783,24 @@ struct InitParameter2 {
 };
 static_assert(sizeof(InitParameter2) <= 40);
 
+// The Rtti parameters hold the same three fields as InitParameter2, with an AllocParamRtti
+// (allocation callbacks) instead of a MemAllocator object.
+using InitParameterRtti = InitParameter2;
+
+void APS5_VABI _ZN3sce4Json17InitParameterRttiC1EPNS0_14AllocParamRttiEPvm(InitParameterRtti* self, void* allocParam, void* userData, std::size_t fileBufferSize) {
+    *self = {allocParam, userData, fileBufferSize};
+}
+
+void APS5_VABI _ZN3sce4Json18InitParameterRtti216setAllocatorRttiEPNS0_14AllocParamRttiEPv(InitParameterRtti* self, void* allocParam, void* userData) {
+    self->allocator = allocParam;
+    self->userData = userData;
+}
+
 void APS5_VABI _ZN3sce4Json14InitParameter2C1Ev(InitParameter2* self) {
+    *self = {};
+}
+
+void APS5_VABI _ZN3sce4Json14InitParameter2C2Ev(InitParameter2* self) {
     *self = {};
 }
 
@@ -811,18 +824,11 @@ void APS5_VABI _ZN3sce4Json5Value5clearEv(Value* self) {
     Clear(NodeOf(*self));
 }
 
-int APS5_VABI _ZN3sce4Json12MemAllocator11notifyErrorEimPv(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
-int APS5_VABI _ZN3sce4Json14InitParameter2C2Ev(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
-int APS5_VABI _ZN3sce4Json18InitParameterRtti216setAllocatorRttiEPNS0_14AllocParamRttiEPv(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+// The base class's default handler: a subclass that wants allocation failures reported overrides it.
+void APS5_VABI _ZN3sce4Json12MemAllocator11notifyErrorEimPv(void* self, int error, std::size_t size, void* userData) {
+    (void)self;
+    (void)error;
+    (void)size;
+    (void)userData;
 }
 }

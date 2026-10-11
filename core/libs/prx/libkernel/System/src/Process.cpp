@@ -249,10 +249,14 @@ int APS5_VABI waitpid_nid_postfix(int pid, int* status, int options) {
     return -1;
 }
 
+// The guest runs alone in its process, as system() and waitpid() model it: there is no other
+// executable to replace its image with, so the call fails like the unsupported system call.
 int APS5_VABI execvp_nid_postfix(const char* file, char* const* arguments) {
-    (void)file;
     (void)arguments;
-    NotImplemented_nid_no_patch("execvp: executable replacement");
+    constexpr int errnoNoEntry = 2;
+    constexpr int errnoFault = 14;
+    constexpr int errnoNotImplemented = 78;
+    *__error_nid_postfix() = file == nullptr ? errnoFault : file[0] == '\0' ? errnoNoEntry : errnoNotImplemented;
     return -1;
 }
 

@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
+#include <system_error>
 #include <thread>
 
 struct GuestXtime {
@@ -24,6 +25,23 @@ int APS5_VABI wcstombs_s_nid_postfix(std::size_t* result, char* destination, std
 int APS5_VABI scePthreadCreate(Pthread* thread, const PthreadAttr* attr, PthreadEntry entry, void* arg, const char* name);
 int APS5_VABI pthread_detach_nid_postfix(Pthread thread);
 int APS5_VABI clock_gettime_nid_postfix(int clockId, KernelTimespec* tp);
+int APS5_VABI _Cnd_init_with_name_nid_postfix(void** condition, const char* name);
+int APS5_VABI _Cnd_signal_nid_postfix(void** condition);
+int APS5_VABI _Cnd_wait_nid_postfix(void** condition, void** mutex);
+void APS5_VABI _Cnd_destroy_nid_postfix(void** condition);
+int APS5_VABI _Mtx_init_nid_postfix(void** mutex, int type);
+int APS5_VABI _Mtx_lock_nid_postfix(void** mutex);
+int APS5_VABI _Mtx_unlock_nid_postfix(void** mutex);
+void APS5_VABI _Mtx_destroy_nid_postfix(void** mutex);
+int APS5_VABI _Thrd_id_nid_postfix(void);
+int APS5_VABI scePthreadGetthreadid(void);
+[[noreturn]] void APS5_VABI _ZSt16_Throw_Cpp_errori_nid_postfix(int code);
+void APS5_VABI _ZNSt4_PadC2Ev_nid_postfix(void* pad);
+void APS5_VABI _ZNSt4_PadD2Ev_nid_postfix(void* pad);
+void APS5_VABI _ZNSt4_Pad7_LaunchEPP7pthread_nid_postfix(void* pad, Pthread* thread);
+void APS5_VABI _ZNSt4_Pad8_ReleaseEv_nid_postfix(void* pad);
+extern std::uint64_t _ZNSt7num_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE2idE_nid_postfix;
+extern std::uint64_t _ZNSt8time_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE2idE_nid_postfix;
 }
 
 static constexpr int ThrdSuccess = 0;
@@ -197,7 +215,107 @@ static void TestWcstombs() {
     Require(result == Failed);
 }
 
+struct Signal {
+    void* condition = nullptr;
+    void* mutex = nullptr;
+    bool ready = false;
+    bool woken = false;
+};
+
+static void* APS5_VABI AwaitSignal(void* arg) {
+    auto& signal = *static_cast<Signal*>(arg);
+    Require(_Mtx_lock_nid_postfix(&signal.mutex) == ThrdSuccess);
+    signal.ready = true;
+    while (!signal.woken) Require(_Cnd_wait_nid_postfix(&signal.condition, &signal.mutex) == ThrdSuccess);
+    Require(_Mtx_unlock_nid_postfix(&signal.mutex) == ThrdSuccess);
+    return reinterpret_cast<void*>(static_cast<std::intptr_t>(_Thrd_id_nid_postfix()));
+}
+
+static void TestConditionSignal() {
+    Signal signal;
+    Require(_Cnd_init_with_name_nid_postfix(&signal.condition, "ampr condition") == ThrdSuccess && signal.condition != nullptr);
+    Require(_Mtx_init_nid_postfix(&signal.mutex, 1) == ThrdSuccess);
+    Pthread thread = nullptr;
+    Require(scePthreadCreate(&thread, nullptr, AwaitSignal, &signal, "signal") == 0);
+    for (;;) {
+        Require(_Mtx_lock_nid_postfix(&signal.mutex) == ThrdSuccess);
+        const bool ready = signal.ready;
+        if (ready) {
+            signal.woken = true;
+            Require(_Cnd_signal_nid_postfix(&signal.condition) == ThrdSuccess);
+        }
+        Require(_Mtx_unlock_nid_postfix(&signal.mutex) == ThrdSuccess);
+        if (ready) break;
+        std::this_thread::yield();
+    }
+    int code = 0;
+    Require(_Thrd_join_nid_postfix(thread, &code) == ThrdSuccess);
+    Require(code != 0 && code != _Thrd_id_nid_postfix());
+    Require(_Thrd_id_nid_postfix() == scePthreadGetthreadid());
+    _Cnd_destroy_nid_postfix(&signal.condition);
+    _Mtx_destroy_nid_postfix(&signal.mutex);
+    Require(signal.condition == nullptr);
+}
+
+static void TestThrowCppError() {
+    const std::errc expected[] = {std::errc::device_or_resource_busy, std::errc::invalid_argument, std::errc::no_such_process, std::errc::not_enough_memory,
+                                  std::errc::operation_not_permitted, std::errc::resource_deadlock_would_occur, std::errc::resource_unavailable_try_again};
+    for (int code = 0; code < 7; ++code) {
+        bool caught = false;
+        try {
+            _ZSt16_Throw_Cpp_errori_nid_postfix(code);
+        } catch (const std::system_error& error) {
+            caught = error.code() == std::make_error_code(expected[code]);
+        }
+        Require(caught);
+    }
+    bool rejected = false;
+    try {
+        _ZSt16_Throw_Cpp_errori_nid_postfix(7);
+    } catch (const std::invalid_argument&) {
+        rejected = true;
+    }
+    Require(rejected);
+}
+
+struct Pad {
+    void* const* vtable;
+    void* condition;
+    void* mutex;
+    bool started;
+    std::atomic<int> runner{0};
+    std::atomic<bool> finish{false};
+};
+
+static unsigned APS5_VABI PadGo(Pad* pad) {
+    pad->runner.store(_Thrd_id_nid_postfix());
+    _ZNSt4_Pad8_ReleaseEv_nid_postfix(pad);
+    while (!pad->finish.load()) std::this_thread::yield();
+    return 7;
+}
+
+static void* const PadVtable[] = {reinterpret_cast<void*>(&PadGo)};
+
+static void TestPad() {
+    Pad pad{PadVtable, nullptr, nullptr, true};
+    _ZNSt4_PadC2Ev_nid_postfix(&pad);
+    Require(pad.condition != nullptr && pad.mutex != nullptr && !pad.started);
+    Pthread thread = nullptr;
+    _ZNSt4_Pad7_LaunchEPP7pthread_nid_postfix(&pad, &thread);
+    Require(thread != nullptr && pad.started && pad.runner.load() != 0 && pad.runner.load() != _Thrd_id_nid_postfix());
+    pad.finish.store(true);
+    int code = 0;
+    Require(_Thrd_join_nid_postfix(thread, &code) == ThrdSuccess && code == 7);
+    _ZNSt4_PadD2Ev_nid_postfix(&pad);
+    Require(pad.condition == nullptr && pad.mutex == nullptr);
+}
+
 int main() {
+    Require(_ZNSt7num_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE2idE_nid_postfix == 0);
+    Require(_ZNSt8time_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE2idE_nid_postfix == 0);
+    TestConditionSignal();
+    TestThrowCppError();
+    TestPad();
     TestThreadJoin();
     TestThreadSleep();
     TestSpinLock();
