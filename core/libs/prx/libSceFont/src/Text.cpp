@@ -17,6 +17,7 @@ using namespace Font;
 constexpr std::uint16_t TEXT_SOURCE_MAGIC = 0x0F04;
 constexpr std::uint16_t FONT_STRING_MAGIC = 0x0F05;
 constexpr std::uint16_t FONT_WRITING_MAGIC = 0x0F06;
+constexpr std::uint16_t FONT_WORDS_MAGIC = 0x0F0B;
 constexpr std::uint16_t CREATE_STRING_DETAIL_ID = 0x0FD4;
 constexpr std::uint32_t WRITING_FORM_HORIZONTAL = 0x10;
 constexpr std::uint32_t WRITING_FORM_HORIZONTAL_LTR = 0x12;
@@ -27,6 +28,7 @@ constexpr std::size_t MAX_PARSED_CHARACTERS = 4096;
 constexpr std::int32_t WRITING_MASK_NONE = 0;
 constexpr std::int32_t WRITING_MASK_FORMAT_CHARACTERS = 1;
 constexpr std::uint64_t CHARACTER_FLAG_FORMAT = 1ull << 42;
+constexpr int SYLLABLE_STRING_NON_DETECTION = 0;
 
 struct CharacterStorage {
     std::atomic<std::uint32_t> refCount{1};
@@ -70,6 +72,17 @@ struct FontWritingData {
 };
 
 static_assert(sizeof(FontWritingData) <= sizeof(FontWriting));
+
+struct FontWordsData {
+    std::uint16_t magic = FONT_WORDS_MAGIC;
+    const FontMemory* memory = nullptr;
+    FontTextSource* source = nullptr;
+};
+
+FontWordsData* GetWordsData(void* fontWords) {
+    auto* data = static_cast<FontWordsData*>(fontWords);
+    return data && data->magic == FONT_WORDS_MAGIC ? data : nullptr;
+}
 
 FontStringData* GetStringData(FontString fontString) {
     auto* data = reinterpret_cast<FontStringData*>(fontString);
@@ -117,6 +130,19 @@ bool IsFormatCode(std::uint32_t code) {
     default:
         return false;
     }
+}
+
+// Han, kana and the CJK punctuation and compatibility blocks break between any two characters.
+bool IsIdeographicCode(std::uint32_t code) {
+    return (code >= 0x2E80 && code <= 0x2FFF) || (code >= 0x3001 && code <= 0x30FF) || (code >= 0x31C0 && code <= 0x31FF) || (code >= 0x3400 && code <= 0x4DBF) ||
+           (code >= 0x4E00 && code <= 0x9FFF) || (code >= 0xF900 && code <= 0xFAFF) || (code >= 0xFF00 && code <= 0xFF60) || (code >= 0x20000 && code <= 0x3FFFF);
+}
+
+FontTextCharacter* NextTextCharacter(FontTextCharacter* character) {
+    for (FontTextCharacter* current = character->next; current; current = current->next) {
+        if (current->synthetic == 0 && current->clusterIndex == 0) return current;
+    }
+    return nullptr;
 }
 
 FontTextCharacter MakeCharacter(FontHandle font, std::uint32_t code, void* textOrder) {
@@ -537,6 +563,70 @@ FontTextCharacter* APS5_VABI sceFontCharacterRefersTextNext(const FontTextCharac
         if (current->synthetic == 0 && current->clusterIndex == 0) return current;
     }
     return nullptr;
+}
+
+int APS5_VABI sceFontCharacterGetSyllableStringState(const FontTextCharacter* textCharacter, int* syllableStringState) {
+    if (!syllableStringState) return SCE_FONT_ERROR_INVALID_PARAMETER;
+    *syllableStringState = SYLLABLE_STRING_NON_DETECTION;
+    if (!textCharacter) return SCE_FONT_ERROR_INVALID_PARAMETER;
+    return SCE_FONT_OK;
+}
+
+int APS5_VABI sceFontCreateWords(const FontMemory* fontMemory, FontTextSource* textSource, const void* detail, void** pFontWords) {
+    (void)detail;
+    if (!fontMemory || !textSource || !pFontWords) {
+        if (pFontWords) *pFontWords = nullptr;
+        return SCE_FONT_ERROR_INVALID_PARAMETER;
+    }
+    *pFontWords = nullptr;
+    if (TextSourceMagic(textSource) != TEXT_SOURCE_MAGIC) return SCE_FONT_ERROR_INVALID_TEXT_SOURCE;
+    if (fontMemory->mem_kind != MEMORY_MAGIC || !fontMemory->iface || !fontMemory->iface->alloc || !fontMemory->iface->dealloc) return SCE_FONT_ERROR_INVALID_MEMORY;
+    void* raw = fontMemory->iface->alloc(fontMemory->mspace_handle, sizeof(FontWordsData));
+    if (!raw) return SCE_FONT_ERROR_ALLOCATION_FAILED;
+    auto* data = new (raw) FontWordsData{};
+    data->memory = fontMemory;
+    data->source = textSource;
+    *pFontWords = data;
+    return SCE_FONT_OK;
+}
+
+int APS5_VABI sceFontDestroyWords(void** pFontWords) {
+    if (!pFontWords) return SCE_FONT_ERROR_INVALID_PARAMETER;
+    auto* data = GetWordsData(*pFontWords);
+    *pFontWords = nullptr;
+    if (!data) return SCE_FONT_ERROR_INVALID_WORDS;
+    const FontMemory* memory = data->memory;
+    data->magic = 0;
+    data->~FontWordsData();
+    memory->iface->dealloc(memory->mspace_handle, data);
+    return SCE_FONT_OK;
+}
+
+// A word is a run of characters other than white space, or one ideographic character, with the white
+// space that follows it; white space at the start character is a word of its own. termCharacter, when
+// given, ends the search without being part of the word.
+int APS5_VABI sceFontWordsFindWordCharacters(void* fontWords, FontTextCharacter* startCharacter, FontTextCharacter* termCharacter, FontTextCharacter** pLastCharacter, FontTextCharacter** pNextCharacter) {
+    if (pLastCharacter) *pLastCharacter = nullptr;
+    if (pNextCharacter) *pNextCharacter = nullptr;
+    if (!GetWordsData(fontWords)) return SCE_FONT_ERROR_INVALID_WORDS;
+    if (!startCharacter || !pLastCharacter || !pNextCharacter || startCharacter == termCharacter) return SCE_FONT_ERROR_INVALID_PARAMETER;
+    const auto atEnd = [&](const FontTextCharacter* character) { return !character || character == termCharacter; };
+    FontTextCharacter* last = startCharacter;
+    FontTextCharacter* next = NextTextCharacter(last);
+    const bool leadingSpace = IsWhitespaceCode(startCharacter->characterCode);
+    if (!leadingSpace && !IsIdeographicCode(startCharacter->characterCode)) {
+        while (!atEnd(next) && !IsWhitespaceCode(next->characterCode) && !IsIdeographicCode(next->characterCode)) {
+            last = next;
+            next = NextTextCharacter(last);
+        }
+    }
+    while (!atEnd(next) && IsWhitespaceCode(next->characterCode)) {
+        last = next;
+        next = NextTextCharacter(last);
+    }
+    *pLastCharacter = last;
+    *pNextCharacter = atEnd(next) ? nullptr : next;
+    return SCE_FONT_OK;
 }
 
 int APS5_VABI sceFontWritingInit(FontWriting* fontWriting, FontString fontString, const FontTextCharacter* fontCharacter) {

@@ -386,6 +386,7 @@ int APS5_VABI sceFontOpenFontInstance(FontHandle fontHandle, FontHandle setupFon
     if (FontState* sourceState = TryGetState(fontHandle)) {
         targetState.scaleW = sourceState->scaleW;
         targetState.scaleH = sourceState->scaleH;
+        targetState.attributes = sourceState->attributes;
         if (sourceState->faceData && !sourceState->faceData->empty()) LoadStateFace(targetState, sourceState->faceData, subFontIndex);
     }
     if (pFontHandle) *pFontHandle = target;
