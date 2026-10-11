@@ -13,6 +13,8 @@ int APS5_VABI sceVideoOutClose(int handle);
 int APS5_VABI sceVideoOutInitializeOutputOptions(VideoOutOutputOptions* options);
 int APS5_VABI sceVideoOutIsOutputSupported(int handle, std::uint64_t mode, const VideoOutOutputOptions* options, void* reservedPtr, std::uint64_t reserved);
 int APS5_VABI sceVideoOutConfigureOutput(int handle, std::uint64_t mode, const VideoOutOutputOptions* options, void* reservedPtr, std::uint64_t reserved);
+int APS5_VABI sceVideoOutVrrPegToFixedRate(int handle);
+int APS5_VABI sceVideoOutVrrUnpegFromFixedRate(int handle);
 }
 
 static constexpr int SYSTEM_USER = 255;
@@ -81,6 +83,15 @@ int main() {
     freeWord.internalData[3] = 0xFFFFFFFF;
     Require(sceVideoOutIsOutputSupported(handle, 1, &freeWord, nullptr, 0) == 1);
     Require(sceVideoOutConfigureOutput(handle, 1, &options, nullptr, 0) == 0);
+    Require(sceVideoOutVrrPegToFixedRate(handle) == 0);
+    Require(sceVideoOutVrrUnpegFromFixedRate(handle) == 0);
+    thrown = false;
+    try {
+        sceVideoOutVrrPegToFixedRate(handle + 1);
+    } catch (const std::runtime_error&) {
+        thrown = true;
+    }
+    Require(thrown);
 
     Require(sceVideoOutClose(handle) == 0);
     Require(sceVideoOutIsOutputSupported(handle, 1, &options, nullptr, 0) == INVALID_HANDLE);

@@ -53,13 +53,12 @@ int APS5_VABI sceAcm_ConvReverb_SharedInput(void) {
     return 0;
 }
 
-int APS5_VABI sceAcm_FFT() {
-    NotImplemented_nid_no_patch(__func__);
+// Like the reverb builder, the FFT and panner builders encode nothing into the no-op batches.
+int APS5_VABI sceAcm_FFT(void) {
     return 0;
 }
 
-int APS5_VABI sceAcm_Panner() {
-    NotImplemented_nid_no_patch(__func__);
+int APS5_VABI sceAcm_Panner(void) {
     return 0;
 }
 
