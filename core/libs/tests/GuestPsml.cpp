@@ -2,11 +2,21 @@
 #include <array>
 #include <cstdint>
 #include <cstdlib>
+#include <initializer_list>
 
 extern "C" {
 std::int32_t APS5_VABI scePsmlMfsrGetContextBufferRequirement1100(void* requirement, const void* param);
 std::int32_t APS5_VABI scePsmlMfsrCreateContext1100(void** context, const void* param);
 std::int32_t APS5_VABI scePsmlMfsrGetDispatchMfsrPacket1100(void* context, void* commandBuffer, const void* param);
+std::int32_t APS5_VABI scePsmlMfsrCreateContext1300();
+std::int32_t APS5_VABI scePsmlMfsrCreateContext800M3_2();
+std::int32_t APS5_VABI scePsmlMfsrGetDispatchMfsrPacket900();
+std::int32_t APS5_VABI scePsmlMfsrCreateSharedResources();
+std::int32_t APS5_VABI scePsmlMfsrReleaseContext();
+std::int32_t APS5_VABI scePsmlMfsrRequestCapture();
+std::int32_t APS5_VABI scePsmlMfsr2CreateContext();
+std::int32_t APS5_VABI scePsmlMfsr2GetDispatchPackets();
+std::int32_t APS5_VABI scePsmlMfsr2ReleaseSharedResources();
 }
 
 namespace {
@@ -50,4 +60,10 @@ int main() {
     Require(scePsmlMfsrGetDispatchMfsrPacket1100(nullptr, &commandBuffer, param.data()) == kErrNotInitialized);
     Require(commandBuffer.cursor == dwords.data());
     Require(dwords == untouchedDwords);
+    using Call = std::int32_t (APS5_VABI*)();
+    for (Call call : {scePsmlMfsrCreateContext1300, scePsmlMfsrCreateContext800M3_2, scePsmlMfsrGetDispatchMfsrPacket900, scePsmlMfsrCreateSharedResources,
+             scePsmlMfsrReleaseContext, scePsmlMfsrRequestCapture, scePsmlMfsr2CreateContext, scePsmlMfsr2GetDispatchPackets,
+             scePsmlMfsr2ReleaseSharedResources}) {
+        Require(call() == kErrNotInitialized);
+    }
 }
