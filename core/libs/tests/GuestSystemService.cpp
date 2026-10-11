@@ -32,6 +32,9 @@ extern "C" int APS5_VABI sceSystemServiceReenableMusicPlayer(void);
 extern "C" int APS5_VABI sceSystemServiceDisableMediaPlay(void);
 extern "C" int APS5_VABI sceSystemServiceReenableMediaPlay(void);
 extern "C" int APS5_VABI sceSystemServiceLaunchWebBrowser(const char* uri, void* param);
+extern "C" int APS5_VABI sceSystemServiceOpenChallengeActivity(void);
+extern "C" int APS5_VABI sceSystemServiceOpenTournamentOccurrence(void);
+extern "C" int APS5_VABI sceSystemServiceShowControllerSettings(void);
 
 int main() {
     Require(sceSystemServicePowerTick() == SYSTEM_SERVICE_OK);
@@ -54,6 +57,9 @@ int main() {
     for (unsigned char byte : browserParam) Require(byte == 0x5a);
     Require(sceSystemServiceLaunchWebBrowser("", nullptr) == browserUnavailable);
     Require(sceSystemServiceLaunchWebBrowser(nullptr, nullptr) == browserUnavailable);
+    Require(sceSystemServiceOpenChallengeActivity() == browserUnavailable);
+    Require(sceSystemServiceOpenTournamentOccurrence() == browserUnavailable);
+    Require(sceSystemServiceShowControllerSettings() == browserUnavailable);
     Require(sceSystemServiceGetHdrToneMapLuminance(nullptr) == SYSTEM_SERVICE_ERROR_PARAMETER);
     SystemServiceHdrToneMapLuminance luminance{-1.0f, -1.0f, -1.0f};
     Require(sceSystemServiceGetHdrToneMapLuminance(&luminance) == SYSTEM_SERVICE_OK);
