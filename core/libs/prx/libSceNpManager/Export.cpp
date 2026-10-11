@@ -137,10 +137,10 @@ int APS5_VABI sceNpPollAsync(int req_id, int* result) {
     return NP_POLL_ASYNC_FINISHED;
 }
 
+// Presence changes come from PlayStation Network, so a registered callback is never called.
 void APS5_VABI sceNpRegisterGamePresenceCallback(void* callback, void* userdata) {
- (void)callback;
  (void)userdata;
- NotImplemented_nid_no_patch(__func__);
+ if (!callback) APS5_INVALID_ARG_EX;
 }
 
 int APS5_VABI sceNpRegisterNpReachabilityStateCallback(void* callback, void* userdata) {
@@ -179,8 +179,7 @@ int APS5_VABI sceNpRegisterStateCallback(void* callback, void* userdata) {
 }
 
 int APS5_VABI sceNpSetContentRestriction(const NpContentRestriction* restriction) {
- (void)restriction;
- NotImplemented_nid_no_patch(__func__);
+ if (!restriction) return SCE_NP_ERROR_INVALID_ARGUMENT;
  return 0;
 }
 
@@ -238,9 +237,11 @@ int APS5_VABI sceNpUnregisterPremiumEventCallback(void) {
     return 0;
 }
 
-int APS5_VABI sceNpGetUserIdByAccountId() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+// No local user is signed in, so no account maps to a user.
+int APS5_VABI sceNpGetUserIdByAccountId(uint64_t account_id, int* user_id) {
+    (void)account_id;
+    if (!user_id) return SCE_NP_ERROR_INVALID_ARGUMENT;
+    return SCE_NP_ERROR_USER_NOT_FOUND;
 }
 
 }

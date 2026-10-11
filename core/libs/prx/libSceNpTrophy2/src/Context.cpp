@@ -35,9 +35,16 @@ int APS5_VABI sceNpTrophy2UnregisterUnlockCallback() {
 }
 
 
-int APS5_VABI sceNpTrophy2GetRewardIcon(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+// No trophy carries a reward, so there is no reward icon, as there is no trophy icon.
+int APS5_VABI sceNpTrophy2GetRewardIcon(int context, int handle, int trophy_id, void* buffer, size_t* size) {
+    (void)context;
+    (void)handle;
+    (void)trophy_id;
+    (void)buffer;
+    if (size != nullptr) {
+        *size = NP_TROPHY2_ICON_SIZE_NONE;
+    }
+    throw std::runtime_error(std::string(__func__) + ": icon file not found");
 }
 
 int APS5_VABI sceNpTrophy2ShowTrophyList(void) {

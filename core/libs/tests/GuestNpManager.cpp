@@ -4,9 +4,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <stdexcept>
 
 extern "C" {
 int APS5_VABI sceNpGetNpId(int user_id, NpId* np_id);
+int APS5_VABI sceNpGetUserIdByAccountId(std::uint64_t account_id, int* user_id);
+int APS5_VABI sceNpSetContentRestriction(const NpContentRestriction* restriction);
+void APS5_VABI sceNpRegisterGamePresenceCallback(void* callback, void* userdata);
 }
 
 extern "C" {
@@ -22,6 +26,7 @@ namespace {
 constexpr int InvalidArgument = static_cast<int>(0x80550003u);
 constexpr int SignedOut = static_cast<int>(0x80550006u);
 constexpr int RequestNotFound = static_cast<int>(0x80550014u);
+constexpr int UserNotFound = static_cast<int>(0x80550007u);
 
 void Require(bool condition, const char* message) {
     if (!condition) {
@@ -67,5 +72,16 @@ int main() {
     Require(sceNpGetNpId(0x10000, &npId) == SignedOut, "sceNpGetNpId must report the user as signed out");
     Require(std::memcmp(&npId, &untouched, sizeof(npId)) == 0, "sceNpGetNpId must leave the NpId untouched");
     Require(sceNpGetNpId(0x10000, nullptr) == InvalidArgument, "sceNpGetNpId must reject a null NpId");
+    int userId = 0x5a;
+    Require(sceNpGetUserIdByAccountId(0x1234, &userId) == UserNotFound && userId == 0x5a, "no account maps to a signed-in user");
+    Require(sceNpGetUserIdByAccountId(0x1234, nullptr) == InvalidArgument, "null user id");
+    NpContentRestriction restriction{};
+    Require(sceNpSetContentRestriction(&restriction) == 0, "content restriction accepted");
+    Require(sceNpSetContentRestriction(nullptr) == InvalidArgument, "null content restriction");
+    sceNpRegisterGamePresenceCallback(&restriction, nullptr);
+    bool threw = false;
+    try { sceNpRegisterGamePresenceCallback(nullptr, nullptr); }
+    catch (const std::invalid_argument&) { threw = true; }
+    Require(threw, "null presence callback accepted");
     return 0;
 }
